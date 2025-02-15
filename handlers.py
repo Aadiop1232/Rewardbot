@@ -15,6 +15,19 @@ logger = logging.getLogger(__name__)
 USERS_PER_PAGE = 10
 
 # ---------------------------
+# Error Handling Decorator
+# ---------------------------
+def error_handler(func):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        try:
+            return await func(update, context, *args, **kwargs)
+        except Exception as e:
+            logger.exception(f"Error in {func.__name__}: {e}")
+            if update.effective_message:
+                await update.effective_message.reply_text("An error occurred. Please try again later.")
+    return wrapper
+
+# ---------------------------
 # Inline Keyboard Builders
 # ---------------------------
 def get_verification_keyboard():
@@ -35,8 +48,7 @@ def get_verification_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_language_keyboard():
-    # Only English is used.
-    languages = ['en']
+    languages = ['en']  # Only English is used
     keyboard = []
     row = []
     for lang in languages:
@@ -109,11 +121,6 @@ def get_user_list_keyboard(page):
 # File Parsing Helper
 # ---------------------------
 def parse_stock_file(file_content, file_type="text"):
-    """
-    Parses uploaded file content containing stock.
-    Supports plain text (each non-empty line containing a colon) and CSV.
-    Returns a list of account strings.
-    """
     accounts = []
     if file_type == "csv":
         try:
@@ -134,8 +141,6 @@ def parse_stock_file(file_content, file_type="text"):
 # ---------------------------
 # Asynchronous Command and Callback Handlers
 # ---------------------------
-from telegram.ext import ContextTypes
-
 @error_handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -191,13 +196,15 @@ async def set_language_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def menu_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    help_text = ("Commands:\n"
-                 "/start - Start the bot\n"
-                 "/help - Show this help message\n"
-                 "/claim <key> - Claim a reward key\n"
-                 "/ban <user_id> - Ban a user (admin only)\n"
-                 "/unban <user_id> - Unban a user (admin only)\n"
-                 "/addowner <user_id> - Add a new owner (owner only)")
+    help_text = (
+        "Commands:\n"
+        "/start - Start the bot\n"
+        "/help - Show this help message\n"
+        "/claim <key> - Claim a reward key\n"
+        "/ban <user_id> - Ban a user (admin only)\n"
+        "/unban <user_id> - Unban a user (admin only)\n"
+        "/addowner <user_id> - Add a new owner (owner only)"
+    )
     await query.edit_message_text(text=help_text, reply_markup=get_main_menu_keyboard())
 
 @error_handler
@@ -313,4 +320,3 @@ async def claim_key_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Invalid key.")
     conn.close()
-            
