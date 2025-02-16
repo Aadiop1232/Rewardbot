@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 
 @error_handler
 async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Displays the main admin panel with options for managing platforms, stock, channels,
+    admin management, user management, key generation, and help.
+    """
     query = update.callback_query
     keyboard = [
         [InlineKeyboardButton("➕ Add/Remove Platform", callback_data="admin_platform")],
@@ -35,6 +39,9 @@ async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @error_handler
 async def admin_platform_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Provides instructions for adding or removing platforms.
+    """
     query = update.callback_query
     message = (
         "📊 **Platform Management** 📊\n\n"
@@ -53,12 +60,15 @@ async def admin_platform_callback(update: Update, context: ContextTypes.DEFAULT_
 
 @error_handler
 async def admin_stock_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Provides instructions for adding stock to a platform.
+    """
     query = update.callback_query
     message = (
         "📥 **Stock Management** 📥\n\n"
         "• To add stock for a platform, use:\n"
         "      `/addstock <platform_name>`\n"
-        "  Then upload a TXT file containing your account entries.\n"
+        "  Then upload a TXT file with account entries.\n"
         "  **Important:** Each account entry must be separated by a blank line.\n\n"
         "• To view stock, use:\n"
         "      `/viewstock <platform_name>`"
@@ -72,6 +82,9 @@ async def admin_stock_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 @error_handler
 async def admin_channel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Provides instructions for adding a verification channel.
+    """
     query = update.callback_query
     message = (
         "📡 **Channel Management** 📡\n\n"
@@ -88,6 +101,9 @@ async def admin_channel_callback(update: Update, context: ContextTypes.DEFAULT_T
 
 @error_handler
 async def admin_management_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Displays advanced admin management options.
+    """
     query = update.callback_query
     keyboard = [
         [InlineKeyboardButton("📋 Admin List", callback_data="admin_list")],
@@ -109,6 +125,9 @@ async def admin_management_callback(update: Update, context: ContextTypes.DEFAUL
 
 @error_handler
 async def admin_users_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Provides instructions for managing users.
+    """
     query = update.callback_query
     message = (
         "👥 **User Management** 👥\n\n"
@@ -128,6 +147,9 @@ async def admin_users_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 @error_handler
 async def admin_key_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Provides instructions for generating keys.
+    """
     query = update.callback_query
     message = (
         "🔑 **Key Generator** 🔑\n\n"
@@ -146,10 +168,12 @@ async def admin_key_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 @error_handler
 async def admin_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Displays a full list of admin commands and their usage.
+    """
     query = update.callback_query
     message = (
         "❓ **Admin Help** ❓\n\n"
-        "Below is a complete list of admin commands and their usage:\n\n"
         "1. **/addplatform <platform_name>**\n"
         "   ➜ Adds a new reward platform.\n\n"
         "2. **/removeplatform <platform_name>**\n"
@@ -216,13 +240,11 @@ async def givepoints_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"Error giving points: {e}")
         await update.message.reply_text("❌ An error occurred while giving points.")
 
-# -------------------------------
-# Additional Admin Command Functions
-# -------------------------------
-
 @error_handler
 async def admin_list_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays a list of all current admins and their roles."""
+    """
+    Displays a list of all current admins and their roles.
+    """
     query = update.callback_query
     conn = sqlite3.connect("bot.db")
     c = conn.cursor()
@@ -287,7 +309,9 @@ async def admin_add_owner_callback(update: Update, context: ContextTypes.DEFAULT
 
 @error_handler
 async def admin_logs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays recent admin logs."""
+    """
+    Displays recent admin logs.
+    """
     query = update.callback_query
     conn = sqlite3.connect("bot.db")
     c = conn.cursor()
@@ -302,167 +326,4 @@ async def admin_logs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             message += f"• Admin ID: {log[0]}, Action: {log[1]}, At: {log[2]}\n"
     keyboard = [[InlineKeyboardButton("⬅️ Back", callback_data="admin_management")]]
     await query.edit_message_text(text=message, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-
-# -------------------------------
-# Rewards UI for Users (Delegated to features module)
-# -------------------------------
-# The rewards UI functions are in the separate features.py file.
-
-# -------------------------------
-# Callback Query Routing and Fallback for Text Commands
-# -------------------------------
-
-@error_handler
-async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    data = query.data
-    if data == "verify":
-        await verify_callback(update, context)
-    elif data == "menu_main":
-        await menu_main_callback(update, context)
-    elif data == "menu_rewards":
-        from features import rewards_menu
-        await rewards_menu(update, context)
-    elif data == "menu_account":
-        await account_info_callback(update, context)
-    elif data == "menu_referral":
-        await referral_system_callback(update, context)
-    elif data == "get_ref_link":
-        await get_referral_link_callback(update, context)
-    elif data == "menu_review":
-        await review_callback(update, context)
-    elif data == "menu_admin":
-        await menu_admin_callback(update, context)
-    elif data == "menu_help":
-        await admin_help_callback(update, context)
-    else:
-        # Delegate rewards submenus and claim actions to the features module.
-        if data.startswith("platform_"):
-            from features import show_platform_stock
-            await show_platform_stock(update, context, data)
-        elif data.startswith("claim_"):
-            from features import claim_stock
-            await claim_stock(update, context, data)
-        else:
-            await query.answer("Unknown command.")
-
-@error_handler
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Ignore messages from channels.
-    if update.effective_chat and update.effective_chat.type == "channel":
-        return
-    user_id = update.effective_user.id
-    if context.user_data.get('awaiting_review'):
-        review_text = update.message.text
-        add_user_log(user_id, f"Review: {review_text}")
-        await update.message.reply_text("Thank you for your feedback!", reply_markup=get_main_menu_keyboard())
-        context.user_data['awaiting_review'] = False
-    else:
-        await update.message.reply_text("Command not recognized. Use /help for assistance.")
-
-@error_handler
-async def claim_key_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args
-    user_id = update.effective_user.id
-    if not args:
-        await update.message.reply_text("Usage: /claim <key>")
-        return
-    key_input = args[0].strip()
-    conn = sqlite3.connect("bot.db")
-    c = conn.cursor()
-    c.execute("SELECT key, type, points_value, is_claimed FROM keys WHERE key = ?", (key_input,))
-    key_data = c.fetchone()
-    if key_data:
-        if key_data[3] == 1:
-            await update.message.reply_text("This key has already been claimed.")
-        else:
-            c.execute("UPDATE keys SET is_claimed = 1 WHERE key = ?", (key_input,))
-            c.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (key_data[2], user_id))
-            conn.commit()
-            await update.message.reply_text(f"Key claimed! You received {key_data[2]} points.")
-            add_user_log(user_id, f"Claimed key {key_input} for {key_data[2]} points")
-    else:
-        await update.message.reply_text("Invalid key.")
-    conn.close()
-
-@error_handler
-async def menu_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.edit_message_text(text="Main Menu", reply_markup=get_main_menu_keyboard())
-
-@error_handler
-async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Bans a user (admin only). Usage: /ban <user_id>"""
-    if not context.args:
-        await update.message.reply_text("Usage: /ban <user_id>")
-        return
-    try:
-        target_user = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("User ID must be a number.")
-        return
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("Access denied. Only admins can ban users.")
-        return
-    ban_user(target_user)
-    await update.message.reply_text(f"User {target_user} has been banned.")
-
-@error_handler
-async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Unbans a user (admin only). Usage: /unban <user_id>"""
-    if not context.args:
-        await update.message.reply_text("Usage: /unban <user_id>")
-        return
-    try:
-        target_user = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("User ID must be a number.")
-        return
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("Access denied. Only admins can unban users.")
-        return
-    unban_user(target_user)
-    await update.message.reply_text(f"User {target_user} has been unbanned.")
-
-@error_handler
-async def add_owner_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Adds a new owner (owner only). Usage: /addowner <user_id>"""
-    if not context.args:
-        await update.message.reply_text("Usage: /addowner <user_id>")
-        return
-    try:
-        new_owner = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("User ID must be a number.")
-        return
-    if not is_owner(update.effective_user.id):
-        await update.message.reply_text("Access denied. Only owners can add new owners.")
-        return
-    add_admin(new_owner, role='owner')
-    await update.message.reply_text(f"User {new_owner} has been added as an owner.")
-
-@error_handler
-async def claim_key_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args
-    user_id = update.effective_user.id
-    if not args:
-        await update.message.reply_text("Usage: /claim <key>")
-        return
-    key_input = args[0].strip()
-    conn = sqlite3.connect("bot.db")
-    c = conn.cursor()
-    c.execute("SELECT key, type, points_value, is_claimed FROM keys WHERE key = ?", (key_input,))
-    key_data = c.fetchone()
-    if key_data:
-        if key_data[3] == 1:
-            await update.message.reply_text("This key has already been claimed.")
-        else:
-            c.execute("UPDATE keys SET is_claimed = 1 WHERE key = ?", (key_input,))
-            c.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (key_data[2], user_id))
-            conn.commit()
-            await update.message.reply_text(f"Key claimed! You received {key_data[2]} points.")
-            add_user_log(user_id, f"Claimed key {key_input} for {key_data[2]} points")
-    else:
-        await update.message.reply_text("Invalid key.")
-    conn.close()
     
