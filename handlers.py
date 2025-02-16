@@ -5,9 +5,9 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Update,
-    InputMediaPhoto,
-    ParseMode
+    InputMediaPhoto
 )
+from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 from config import REQUIRED_CHANNELS
 from database import add_user, mark_user_verified, add_user_log, is_admin, is_owner, get_user
@@ -143,7 +143,7 @@ async def referral_system_callback(update: Update, context: ContextTypes.DEFAULT
 async def get_referral_link_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     # Replace 'YourBot' with your bot's actual username.
-    ref_link = f"http://t.me/ShadowRewardsBot?start=ref{query.from_user.id}"
+    ref_link = f"t.me/ShadowRewardsBot?start=ref{query.from_user.id}"
     await query.answer("Referral Link Generated")
     await query.edit_message_text(
         text=f"Your Referral Link:\n{ref_link}",
@@ -205,7 +205,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
 
 @error_handler
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Check if the message is from a channel; if so, do nothing.
+    # If message is from a channel, ignore it.
     if update.effective_chat and update.effective_chat.type == "channel":
         return
 
