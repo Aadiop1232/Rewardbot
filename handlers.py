@@ -172,7 +172,7 @@ async def get_referral_link_callback(update: Update, context: ContextTypes.DEFAU
     """
     query = update.callback_query
     # Replace 'YourBot' with your actual bot username.
-    ref_link = f"https://t.me/YourBot?start=ref{query.from_user.id}"
+    ref_link = f"http://t.me/ShadowRewardsBot?start=ref{query.from_user.id}"
     await query.answer("Referral Link Generated")
     await query.edit_message_text(
         text=f"Your Referral Link:\n{ref_link}",
