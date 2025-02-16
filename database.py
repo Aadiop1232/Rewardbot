@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    # Users table: stores user data and verification status.
+    
+    # Users table: stores user details.
     c.execute('''
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
@@ -20,12 +21,11 @@ def init_db():
         points INTEGER DEFAULT 0,
         verified INTEGER DEFAULT 0,
         referrals INTEGER DEFAULT 0,
-        banned INTEGER DEFAULT 0,
-        last_active TEXT
+        banned INTEGER DEFAULT 0
     )
     ''')
     
-    # Platforms table: holds the reward platforms.
+    # Platforms table: stores reward platforms.
     c.execute('''
     CREATE TABLE IF NOT EXISTS platforms (
         platform_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +44,7 @@ def init_db():
     )
     ''')
     
-    # Referrals table: tracks referral relationships and points earned.
+    # Referrals table: tracks referral relationships and earned points.
     c.execute('''
     CREATE TABLE IF NOT EXISTS referrals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,7 +65,7 @@ def init_db():
     )
     ''')
     
-    # Admin logs table: logs actions taken by admins.
+    # Admin logs table: logs actions performed by admins.
     c.execute('''
     CREATE TABLE IF NOT EXISTS admin_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,11 +101,10 @@ def add_user(user_id, username):
     c = conn.cursor()
     join_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     try:
-        c.execute('''
-        INSERT OR IGNORE INTO users 
-        (user_id, username, role, join_date, language, points, verified, referrals, banned, last_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, username, 'user', join_date, 'en', 0, 0, 0, 0, join_date))
+        c.execute(
+            "INSERT OR IGNORE INTO users (user_id, username, role, join_date, language, points, verified, referrals, banned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, username, 'user', join_date, 'en', 0, 0, 0, 0)
+        )
     except Exception as e:
         logger.error(f"Error adding user {user_id}: {e}")
     conn.commit()
@@ -132,6 +131,15 @@ def get_user(user_id):
     user = c.fetchone()
     conn.close()
     return user
+
+def add_admin_log(admin_id, action):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    c.execute("INSERT INTO admin_logs (admin_id, action, timestamp) VALUES (?, ?, ?)",
+              (admin_id, action, timestamp))
+    conn.commit()
+    conn.close()
 
 def add_user_log(user_id, action):
     conn = sqlite3.connect(DB_NAME)
