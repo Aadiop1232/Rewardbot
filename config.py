@@ -2,7 +2,7 @@
 import os
 
 # Bot token (set via an environment variable or directly here)
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8017553859:AAHacxJhRk97GtKI8rNhjoXht_xh77kwiiQ")
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7760154469:AAHUQ_a6ODMubGpY9bqxVa2NqIvXCF2IWiE")
 
 # Channels required for verification (the bot must be admin in these channels)
 REQUIRED_CHANNELS = [
