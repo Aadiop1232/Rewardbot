@@ -24,6 +24,17 @@ logger = logging.getLogger(__name__)
 USERS_PER_PAGE = 10
 
 # -------------------------
+# Error Handling Decorator
+# -------------------------
+def error_handler(func):
+    async def wrapper(update: Update, context: CallbackContext):
+        try:
+            return await func(update, context)
+        except Exception as e:
+            logger.error(f"Error in handler {func.__name__}: {e}")
+    return wrapper
+
+# -------------------------
 # Keyboard Builders
 # -------------------------
 
@@ -38,7 +49,6 @@ def get_verification_keyboard():
             row = []
     if row:
         keyboard.append(row)
-    # The verification keyboard includes a "Verify" button.
     keyboard.append([InlineKeyboardButton(text="Verify", callback_data="verify")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -370,4 +380,4 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['awaiting_review'] = False
     else:
         await update.message.reply_text("Command not recognized. Use /help for assistance.")
-        
+                
