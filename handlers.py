@@ -1,36 +1,23 @@
 # handlers.py
 import logging
 import sqlite3
-import csv
-import io
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
-from config import REQUIRED_CHANNELS
-from database import (
-    add_user, mark_user_verified, get_user, add_user_log,
-    is_admin, is_owner, generate_key, ban_user, unban_user, add_admin
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+    InputMediaPhoto,
+    ParseMode
 )
+from telegram.ext import CallbackContext
+from config import REQUIRED_CHANNELS
+from database import add_user, mark_user_verified, add_user_log, is_admin, is_owner, get_user
 
 logger = logging.getLogger(__name__)
-USERS_PER_PAGE = 10
 
-# ---------------------------
-# Error Handling Decorator
-# ---------------------------
-def error_handler(func):
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        try:
-            return await func(update, context, *args, **kwargs)
-        except Exception as e:
-            logger.exception(f"Error in {func.__name__}: {e}")
-            if update.effective_message:
-                await update.effective_message.reply_text("An error occurred. Please try again later.")
-    return wrapper
-
-# ---------------------------
-# Inline Keyboard Builders
-# ---------------------------
 def get_verification_keyboard():
+    """
+    Builds a keyboard showing required channels (2 per row) and a 'Verify' button.
+    """
     keyboard = []
     row = []
     for channel in REQUIRED_CHANNELS:
@@ -41,26 +28,14 @@ def get_verification_keyboard():
             row = []
     if row:
         keyboard.append(row)
-    keyboard.append([
-        InlineKeyboardButton(text="Verify", callback_data="verify"),
-        InlineKeyboardButton(text="Change Language", callback_data="change_lang")
-    ])
-    return InlineKeyboardMarkup(keyboard)
-
-def get_language_keyboard():
-    languages = ['en']  # Only English is used
-    keyboard = []
-    row = []
-    for lang in languages:
-        row.append(InlineKeyboardButton(text=lang.upper(), callback_data=f"set_lang_{lang}"))
-        if len(row) == 5:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton(text="Verify", callback_data="verify")])
     return InlineKeyboardMarkup(keyboard)
 
 def get_main_menu_keyboard():
+    """
+    Builds the main menu inline keyboard with buttons for Rewards, Account Info,
+    Referral System, Review/Suggestion, and Admin Panel.
+    """
     keyboard = [
         [
             InlineKeyboardButton(text="Rewards", callback_data="menu_rewards"),
@@ -68,225 +43,212 @@ def get_main_menu_keyboard():
             InlineKeyboardButton(text="Referral System", callback_data="menu_referral")
         ],
         [
-            InlineKeyboardButton(text="Change Language", callback_data="change_lang"),
             InlineKeyboardButton(text="Review/Suggestion", callback_data="menu_review"),
             InlineKeyboardButton(text="Admin Panel", callback_data="menu_admin")
-        ],
-        [
-            InlineKeyboardButton(text="Help", callback_data="menu_help")
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def get_admin_menu_keyboard():
-    keyboard = [
-        [
-            InlineKeyboardButton(text="Add/Remove Platform", callback_data="admin_platform"),
-            InlineKeyboardButton(text="Add Stock", callback_data="admin_stock")
-        ],
-        [
-            InlineKeyboardButton(text="Add Channel", callback_data="admin_channel"),
-            InlineKeyboardButton(text="Admin Management", callback_data="admin_management")
-        ],
-        [
-            InlineKeyboardButton(text="User Section", callback_data="admin_users"),
-            InlineKeyboardButton(text="Key Generator", callback_data="admin_key")
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def get_user_list_keyboard(page):
-    conn = sqlite3.connect("bot.db")
-    c = conn.cursor()
-    offset = (page - 1) * USERS_PER_PAGE
-    c.execute("SELECT user_id, username FROM users LIMIT ? OFFSET ?", (USERS_PER_PAGE, offset))
-    users = c.fetchall()
-    c.execute("SELECT COUNT(*) FROM users")
-    total = c.fetchone()[0]
-    conn.close()
-    keyboard = []
-    for u in users:
-        keyboard.append([InlineKeyboardButton(text=f"{u[1]} ({u[0]})", callback_data="noop")])
-    nav_buttons = []
-    if page > 1:
-        nav_buttons.append(InlineKeyboardButton(text="« Prev", callback_data=f"userlist_page_{page-1}"))
-    if offset + USERS_PER_PAGE < total:
-        nav_buttons.append(InlineKeyboardButton(text="Next »", callback_data=f"userlist_page_{page+1}"))
-    if nav_buttons:
-        keyboard.append(nav_buttons)
-    keyboard.append([InlineKeyboardButton(text="Back", callback_data="menu_admin")])
-    return InlineKeyboardMarkup(keyboard)
-
-# ---------------------------
-# File Parsing Helper
-# ---------------------------
-def parse_stock_file(file_content, file_type="text"):
-    accounts = []
-    if file_type == "csv":
+def error_handler(func):
+    """
+    A decorator to log any errors in the handler functions.
+    """
+    async def wrapper(update: Update, context: CallbackContext):
         try:
-            f = io.StringIO(file_content)
-            reader = csv.reader(f)
-            for row in reader:
-                if row and any(row):
-                    accounts.append(":".join(row))
+            return await func(update, context)
         except Exception as e:
-            logger.error(f"CSV parsing error: {e}")
-    else:
-        for line in file_content.splitlines():
-            line = line.strip()
-            if line and ":" in line:
-                accounts.append(line)
-    return accounts
+            logger.error(f"Error in handler {func.__name__}: {e}")
+    return wrapper
 
-# ---------------------------
-# Asynchronous Command and Callback Handlers
-# ---------------------------
+from telegram.ext import ContextTypes
+
 @error_handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handles the /start command. Adds the user to the database and sends a welcome image
+    with the verification keyboard if they are not an admin; admins are auto-verified.
+    """
     user = update.effective_user
     add_user(user.id, user.username)
     if is_admin(user.id):
         mark_user_verified(user.id)
-        await update.message.reply_text("Welcome Admin/Owner! You are auto verified.", reply_markup=get_main_menu_keyboard())
+        await update.message.reply_text(
+            "Welcome Admin/Owner! You are auto verified.",
+            reply_markup=get_main_menu_keyboard()
+        )
     else:
-        welcome = f"Hey {user.first_name}, Welcome To Shadow Rewards Bot!\nPlease verify yourself by joining the below channels."
-        await update.message.reply_photo(photo="https://i.imgur.com/mDAjGNm.jpeg", caption=welcome, reply_markup=get_verification_keyboard())
+        welcome_text = (
+            f"Hey {user.first_name}, Welcome To Shadow Rewards Bot!\n"
+            "Please verify yourself by joining the below channels."
+        )
+        await update.message.reply_photo(
+            photo="https://i.imgur.com/mDAjGNm.jpeg",
+            caption=welcome_text,
+            reply_markup=get_verification_keyboard()
+        )
 
 @error_handler
 async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Verifies that a user has joined all required channels. If so, marks them as verified
+    and displays the main menu; otherwise, prompts the user again.
+    """
     query = update.callback_query
     user_id = query.from_user.id
-    if is_admin(user_id):
-        mark_user_verified(user_id)
-        await query.answer("Welcome Admin/Owner! You are auto verified.")
-        await query.edit_message_text(text="You are verified! Welcome to the main menu.", reply_markup=get_main_menu_keyboard())
-        return
     not_joined = []
     for channel in REQUIRED_CHANNELS:
         try:
             member_status = (await context.bot.get_chat_member(chat_id=channel, user_id=user_id)).status
             if member_status not in ['member', 'administrator', 'creator']:
                 not_joined.append(channel)
-        except Exception as e:
-            logger.error(f"Error checking channel {channel}: {e}")
+        except Exception:
             not_joined.append(channel)
     if not_joined:
         text = "Please join the following channels:\n" + "\n".join(not_joined)
         await query.answer()
-        await query.edit_message_text(text=text, reply_markup=get_verification_keyboard())
+        await query.edit_message_text(
+            text=text,
+            reply_markup=get_verification_keyboard()
+        )
     else:
         mark_user_verified(user_id)
         add_user_log(user_id, "Verified")
-        await query.answer("You are verified! Welcome to the main menu.")
-        await context.bot.send_message(chat_id=user_id, text="You are verified! Welcome to the main menu.", reply_markup=get_main_menu_keyboard())
+        await query.answer("You are verified!")
+        await query.edit_message_text(
+            text="You are verified! Welcome to the main menu.",
+            reply_markup=get_main_menu_keyboard()
+        )
 
 @error_handler
-async def change_lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def account_info_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Retrieves and displays the user's account information from the database.
+    """
     query = update.callback_query
-    await query.answer("Language feature is disabled.")
-    await query.edit_message_text(text="Language feature is disabled.", reply_markup=get_main_menu_keyboard())
-
-@error_handler
-async def set_language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer("Language feature is disabled.")
-    await query.edit_message_text(text="Language feature is disabled.", reply_markup=get_main_menu_keyboard())
-
-@error_handler
-async def menu_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
+    user = get_user(query.from_user.id)
+    if user:
+        info = (
+            f"Username: {user[1]}\n"
+            f"User ID: {user[0]}\n"
+            f"Role: {user[2]}\n"
+            f"Joined: {user[3]}\n"
+            f"Points: {user[5]}"
+        )
+    else:
+        info = "User info not found."
     await query.answer()
-    help_text = (
-        "Commands:\n"
-        "/start - Start the bot\n"
-        "/help - Show this help message\n"
-        "/claim <key> - Claim a reward key\n"
-        "/ban <user_id> - Ban a user (admin only)\n"
-        "/unban <user_id> - Unban a user (admin only)\n"
-        "/addowner <user_id> - Add a new owner (owner only)"
+    await query.edit_message_text(text=info, reply_markup=get_main_menu_keyboard())
+
+@error_handler
+async def referral_system_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Displays referral statistics (total referrals and earned points) for the user,
+    and provides a button to get a referral link.
+    """
+    query = update.callback_query
+    user_id = query.from_user.id
+    conn = sqlite3.connect("bot.db")
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*), COALESCE(SUM(points_earned), 0) FROM referrals WHERE referrer_id = ?", (user_id,))
+    result = c.fetchone()
+    conn.close()
+    total_refs = result[0] if result else 0
+    total_points = result[1] if result else 0
+    info = f"Referral System:\nTotal Referrals: {total_refs}\nEarned Points: {total_points}"
+    keyboard = [
+        [InlineKeyboardButton(text="Get Referral Link", callback_data="get_ref_link")],
+        [InlineKeyboardButton(text="Back to Menu", callback_data="menu_main")]
+    ]
+    await query.answer()
+    await query.edit_message_text(
+        text=info,
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    await query.edit_message_text(text=help_text, reply_markup=get_main_menu_keyboard())
 
 @error_handler
-async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("Access denied. Only admins can ban users.")
-        return
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /ban <user_id>")
-        return
-    try:
-        target = int(context.args[0])
-        ban_user(target)
-        await update.message.reply_text(f"User {target} has been banned.")
-    except ValueError:
-        await update.message.reply_text("User ID must be a number.")
-
-@error_handler
-async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("Access denied. Only admins can unban users.")
-        return
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /unban <user_id>")
-        return
-    try:
-        target = int(context.args[0])
-        unban_user(target)
-        await update.message.reply_text(f"User {target} has been unbanned.")
-    except ValueError:
-        await update.message.reply_text("User ID must be a number.")
-
-@error_handler
-async def add_owner_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    requesting_user = update.effective_user.id
-    if not is_owner(requesting_user):
-        await update.message.reply_text("Access denied. Only owners can add new owners.")
-        return
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /addowner <user_id>")
-        return
-    try:
-        new_owner_id = int(context.args[0])
-        add_admin(new_owner_id, role='owner')
-        await update.message.reply_text(f"User {new_owner_id} has been added as an owner.")
-    except ValueError:
-        await update.message.reply_text("User ID must be a number.")
-
-@error_handler
-async def admin_users_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_referral_link_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Generates and displays a referral link for the user.
+    """
     query = update.callback_query
-    await query.answer()
-    page = 1
-    data = query.data
-    if data.startswith("userlist_page_"):
-        try:
-            page = int(data.split("_")[-1])
-        except:
-            page = 1
-    await query.edit_message_text(text="User List:", reply_markup=get_user_list_keyboard(page))
+    # Replace 'YourBot' with your actual bot username.
+    ref_link = f"https://t.me/YourBot?start=ref{query.from_user.id}"
+    await query.answer("Referral Link Generated")
+    await query.edit_message_text(
+        text=f"Your Referral Link:\n{ref_link}",
+        reply_markup=get_main_menu_keyboard()
+    )
+
+@error_handler
+async def review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Prompts the user to submit a review or suggestion.
+    """
+    query = update.callback_query
+    await query.answer("Please send your review or suggestion as a text message.")
+    context.user_data['awaiting_review'] = True
+    await query.edit_message_text(text="Please type your review/suggestion:")
+
+@error_handler
+async def menu_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Displays the admin panel if the user is an admin; otherwise denies access.
+    """
+    query = update.callback_query
+    if not is_admin(query.from_user.id):
+        await query.answer("Access prohibited.")
+        return
+    from admin_features import admin_menu
+    await admin_menu(update, context)
+
+@error_handler
+async def menu_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Returns the user to the main menu.
+    """
+    query = update.callback_query
+    await query.edit_message_text(text="Main Menu", reply_markup=get_main_menu_keyboard())
 
 @error_handler
 async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Routes incoming callback queries (from inline buttons) to the appropriate handler.
+    """
     query = update.callback_query
     data = query.data
     if data == "verify":
         await verify_callback(update, context)
-    elif data == "change_lang":
-        await change_lang_callback(update, context)
-    elif data.startswith("set_lang_"):
-        await set_language_callback(update, context)
-    elif data == "menu_help":
-        await menu_help_callback(update, context)
-    elif data.startswith("userlist_page_"):
-        await admin_users_callback(update, context)
+    elif data == "menu_main":
+        await menu_main_callback(update, context)
+    elif data == "menu_rewards":
+        from features import rewards_menu
+        await rewards_menu(update, context)
+    elif data == "menu_account":
+        await account_info_callback(update, context)
+    elif data == "menu_referral":
+        await referral_system_callback(update, context)
+    elif data == "get_ref_link":
+        await get_referral_link_callback(update, context)
+    elif data == "menu_review":
+        await review_callback(update, context)
+    elif data == "menu_admin":
+        await menu_admin_callback(update, context)
     else:
-        await query.answer("Command not recognized.")
+        # Delegate rewards submenus and claim actions to the features module.
+        if data.startswith("platform_"):
+            from features import show_platform_stock
+            await show_platform_stock(update, context, data)
+        elif data.startswith("claim_"):
+            from features import claim_stock
+            await claim_stock(update, context, data)
+        else:
+            await query.answer("Unknown command.")
 
 @error_handler
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Processes text messages; if awaiting a review submission, captures it.
+    """
     user_id = update.effective_user.id
     if context.user_data.get('awaiting_review'):
         review_text = update.message.text
@@ -298,6 +260,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @error_handler
 async def claim_key_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Processes the /claim command to redeem a key. If valid and unclaimed, adds points to the user's balance.
+    """
     args = context.args
     user_id = update.effective_user.id
     if not args:
