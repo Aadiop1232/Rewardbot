@@ -15,9 +15,7 @@ from database import add_user, mark_user_verified, add_user_log, is_admin, is_ow
 logger = logging.getLogger(__name__)
 
 def get_verification_keyboard():
-    """
-    Builds a keyboard showing required channels (2 per row) and a 'Verify' button.
-    """
+    # Build a keyboard showing required channels (2 per row) and a "Verify" button.
     keyboard = []
     row = []
     for channel in REQUIRED_CHANNELS:
@@ -32,10 +30,7 @@ def get_verification_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_main_menu_keyboard():
-    """
-    Builds the main menu inline keyboard with buttons for Rewards, Account Info,
-    Referral System, Review/Suggestion, and Admin Panel.
-    """
+    # Main menu inline keyboard: 3 buttons in the first row, 2 in the second.
     keyboard = [
         [
             InlineKeyboardButton(text="Rewards", callback_data="menu_rewards"),
@@ -50,9 +45,6 @@ def get_main_menu_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def error_handler(func):
-    """
-    A decorator to log any errors in the handler functions.
-    """
     async def wrapper(update: Update, context: CallbackContext):
         try:
             return await func(update, context)
@@ -64,10 +56,6 @@ from telegram.ext import ContextTypes
 
 @error_handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Handles the /start command. Adds the user to the database and sends a welcome image
-    with the verification keyboard if they are not an admin; admins are auto-verified.
-    """
     user = update.effective_user
     add_user(user.id, user.username)
     if is_admin(user.id):
@@ -89,10 +77,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @error_handler
 async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Verifies that a user has joined all required channels. If so, marks them as verified
-    and displays the main menu; otherwise, prompts the user again.
-    """
     query = update.callback_query
     user_id = query.from_user.id
     not_joined = []
@@ -121,18 +105,12 @@ async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @error_handler
 async def account_info_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Retrieves and displays the user's account information from the database.
-    """
     query = update.callback_query
     user = get_user(query.from_user.id)
     if user:
         info = (
-            f"Username: {user[1]}\n"
-            f"User ID: {user[0]}\n"
-            f"Role: {user[2]}\n"
-            f"Joined: {user[3]}\n"
-            f"Points: {user[5]}"
+            f"Username: {user[1]}\nUser ID: {user[0]}\nRole: {user[2]}\n"
+            f"Joined: {user[3]}\nPoints: {user[5]}"
         )
     else:
         info = "User info not found."
@@ -141,10 +119,6 @@ async def account_info_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 @error_handler
 async def referral_system_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Displays referral statistics (total referrals and earned points) for the user,
-    and provides a button to get a referral link.
-    """
     query = update.callback_query
     user_id = query.from_user.id
     conn = sqlite3.connect("bot.db")
@@ -167,11 +141,8 @@ async def referral_system_callback(update: Update, context: ContextTypes.DEFAULT
 
 @error_handler
 async def get_referral_link_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Generates and displays a referral link for the user.
-    """
     query = update.callback_query
-    # Replace 'YourBot' with your actual bot username.
+    # Replace 'YourBot' with your bot's actual username.
     ref_link = f"http://t.me/ShadowRewardsBot?start=ref{query.from_user.id}"
     await query.answer("Referral Link Generated")
     await query.edit_message_text(
@@ -181,9 +152,6 @@ async def get_referral_link_callback(update: Update, context: ContextTypes.DEFAU
 
 @error_handler
 async def review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Prompts the user to submit a review or suggestion.
-    """
     query = update.callback_query
     await query.answer("Please send your review or suggestion as a text message.")
     context.user_data['awaiting_review'] = True
@@ -191,9 +159,6 @@ async def review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @error_handler
 async def menu_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Displays the admin panel if the user is an admin; otherwise denies access.
-    """
     query = update.callback_query
     if not is_admin(query.from_user.id):
         await query.answer("Access prohibited.")
@@ -203,17 +168,11 @@ async def menu_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 @error_handler
 async def menu_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Returns the user to the main menu.
-    """
     query = update.callback_query
     await query.edit_message_text(text="Main Menu", reply_markup=get_main_menu_keyboard())
 
 @error_handler
 async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Routes incoming callback queries (from inline buttons) to the appropriate handler.
-    """
     query = update.callback_query
     data = query.data
     if data == "verify":
@@ -246,9 +205,10 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
 
 @error_handler
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Processes text messages; if awaiting a review submission, captures it.
-    """
+    # Check if the message is from a channel; if so, do nothing.
+    if update.effective_chat and update.effective_chat.type == "channel":
+        return
+
     user_id = update.effective_user.id
     if context.user_data.get('awaiting_review'):
         review_text = update.message.text
@@ -260,9 +220,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @error_handler
 async def claim_key_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Processes the /claim command to redeem a key. If valid and unclaimed, adds points to the user's balance.
-    """
     args = context.args
     user_id = update.effective_user.id
     if not args:
