@@ -10,7 +10,17 @@ from telegram import (
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 from config import REQUIRED_CHANNELS
-from database import add_user, mark_user_verified, add_user_log, is_admin, is_owner, get_user, ban_user, unban_user, add_admin
+from database import (
+    add_user,
+    mark_user_verified,
+    add_user_log,
+    is_admin,
+    is_owner,
+    get_user,
+    ban_user,
+    unban_user,
+    add_admin
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +40,7 @@ def get_verification_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_main_menu_keyboard():
-    # Main menu inline keyboard: 3 buttons in the first row, 2 in the second.
+    # Main menu inline keyboard: first row with 3 buttons, second row with 2.
     keyboard = [
         [
             InlineKeyboardButton(text="Rewards", callback_data="menu_rewards"),
@@ -109,13 +119,19 @@ async def account_info_callback(update: Update, context: ContextTypes.DEFAULT_TY
     user = get_user(query.from_user.id)
     if user:
         info = (
-            f"Username: {user[1]}\nUser ID: {user[0]}\nRole: {user[2]}\n"
-            f"Joined: {user[3]}\nPoints: {user[5]}"
+            f"Username: {user[1]}\n"
+            f"User ID: {user[0]}\n"
+            f"Role: {user[2]}\n"
+            f"Joined: {user[3]}\n"
+            f"Points: {user[5]}"
         )
     else:
         info = "User info not found."
     await query.answer()
-    await query.edit_message_text(text=info, reply_markup=get_main_menu_keyboard())
+    await query.edit_message_text(
+        text=info,
+        reply_markup=get_main_menu_keyboard()
+    )
 
 @error_handler
 async def referral_system_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -142,7 +158,7 @@ async def referral_system_callback(update: Update, context: ContextTypes.DEFAULT
 @error_handler
 async def get_referral_link_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    # Replace 'YourBot' with your actual bot username.
+    # Using your actual bot username here.
     ref_link = f"https://t.me/ShadowRewardsBot?start=ref{query.from_user.id}"
     await query.answer("Referral Link Generated")
     await query.edit_message_text(
@@ -171,7 +187,28 @@ async def menu_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.edit_message_text(text="Main Menu", reply_markup=get_main_menu_keyboard())
 
-# Missing command implementations added below:
+@error_handler
+async def menu_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    help_text = (
+        "📖 **Help & Commands:**\n\n"
+        "• /start - Begin and register with the bot\n"
+        "• /claim <key> - Redeem a reward key\n"
+        "• /ban <user_id> - Ban a user (admin only)\n"
+        "• /unban <user_id> - Unban a user (admin only)\n"
+        "• /addowner <user_id> - Add a new owner (owner only)\n"
+        "• /addplatform <platform_name> - Add a new reward platform (admin only)\n"
+        "• /addstock <platform_name> - Add stock to a platform (admin only)\n"
+        "• /givepoints <user_id> <quantity> - Add points to a user (owner only)\n"
+        "• /help - Display this help message\n\n"
+        "Inline button commands available from the main menu:\n"
+        "• Rewards, Account Info, Referral System, Review/Suggestion, and Admin Panel."
+    )
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(
+        text=help_text,
+        reply_markup=get_main_menu_keyboard(),
+        parse_mode=ParseMode.MARKDOWN
+    )
 
 @error_handler
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -225,52 +262,6 @@ async def add_owner_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"User {new_owner} has been added as an owner.")
 
 @error_handler
-async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    data = query.data
-    if data == "verify":
-        await verify_callback(update, context)
-    elif data == "menu_main":
-        await menu_main_callback(update, context)
-    elif data == "menu_rewards":
-        from features import rewards_menu
-        await rewards_menu(update, context)
-    elif data == "menu_account":
-        await account_info_callback(update, context)
-    elif data == "menu_referral":
-        await referral_system_callback(update, context)
-    elif data == "get_ref_link":
-        await get_referral_link_callback(update, context)
-    elif data == "menu_review":
-        await review_callback(update, context)
-    elif data == "menu_admin":
-        await menu_admin_callback(update, context)
-    else:
-        # Delegate rewards submenus and claim actions to the features module.
-        if data.startswith("platform_"):
-            from features import show_platform_stock
-            await show_platform_stock(update, context, data)
-        elif data.startswith("claim_"):
-            from features import claim_stock
-            await claim_stock(update, context, data)
-        else:
-            await query.answer("Unknown command.")
-
-@error_handler
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # If message is from a channel, ignore it.
-    if update.effective_chat and update.effective_chat.type == "channel":
-        return
-    user_id = update.effective_user.id
-    if context.user_data.get('awaiting_review'):
-        review_text = update.message.text
-        add_user_log(user_id, f"Review: {review_text}")
-        await update.message.reply_text("Thank you for your feedback!", reply_markup=get_main_menu_keyboard())
-        context.user_data['awaiting_review'] = False
-    else:
-        await update.message.reply_text("Command not recognized. Use /help for assistance.")
-
-@error_handler
 async def claim_key_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     user_id = update.effective_user.id
@@ -294,4 +285,52 @@ async def claim_key_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Invalid key.")
     conn.close()
-                           
+
+@error_handler
+async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data = query.data
+    if data == "verify":
+        await verify_callback(update, context)
+    elif data == "menu_main":
+        await menu_main_callback(update, context)
+    elif data == "menu_rewards":
+        from features import rewards_menu
+        await rewards_menu(update, context)
+    elif data == "menu_account":
+        await account_info_callback(update, context)
+    elif data == "menu_referral":
+        await referral_system_callback(update, context)
+    elif data == "get_ref_link":
+        await get_referral_link_callback(update, context)
+    elif data == "menu_review":
+        await review_callback(update, context)
+    elif data == "menu_admin":
+        await menu_admin_callback(update, context)
+    elif data == "menu_help":
+        await menu_help_callback(update, context)
+    else:
+        # Delegate rewards submenus and claim actions to the features module.
+        if data.startswith("platform_"):
+            from features import show_platform_stock
+            await show_platform_stock(update, context, data)
+        elif data.startswith("claim_"):
+            from features import claim_stock
+            await claim_stock(update, context, data)
+        else:
+            await query.answer("Unknown command.")
+
+@error_handler
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Ignore messages from channels.
+    if update.effective_chat and update.effective_chat.type == "channel":
+        return
+    user_id = update.effective_user.id
+    if context.user_data.get('awaiting_review'):
+        review_text = update.message.text
+        add_user_log(user_id, f"Review: {review_text}")
+        await update.message.reply_text("Thank you for your feedback!", reply_markup=get_main_menu_keyboard())
+        context.user_data['awaiting_review'] = False
+    else:
+        await update.message.reply_text("Command not recognized. Use /help for assistance.")
+    
