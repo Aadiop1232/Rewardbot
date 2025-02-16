@@ -2,7 +2,8 @@
 import logging
 import sqlite3
 import io
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputMediaPhoto, ParseMode
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputMediaPhoto
+from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from database import add_user_log
 from config import DEFAULT_OWNERS, BANNER_URL
@@ -99,7 +100,7 @@ async def receive_stock_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
     file_obj = await document.get_file()
     file_bytes = await file_obj.download_as_bytearray()
     text = file_bytes.decode('utf-8', errors='ignore')
-
+    
     # Split text by blank lines; each block is one account entry.
     blocks = [block.strip() for block in text.split("\n\n") if block.strip()]
     if not blocks:
@@ -184,8 +185,8 @@ async def show_platform_stock(update: Update, context: ContextTypes.DEFAULT_TYPE
 @error_handler
 async def claim_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
     """
-    When a user taps 'Claim', selects one random unclaimed stock entry,
-    marks it as claimed, and sends its details.
+    When a user taps 'Claim', this function selects one random unclaimed stock entry,
+    marks it as claimed, and sends its details with the actual platform name.
     """
     query = update.callback_query
     try:
@@ -210,14 +211,18 @@ async def claim_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, data: 
     stock_id, account_details = result
     c.execute("UPDATE stock SET is_claimed = 1 WHERE stock_id = ?", (stock_id,))
     conn.commit()
+    # Retrieve the platform name
+    c.execute("SELECT name FROM platforms WHERE platform_id = ?", (platform_id,))
+    platform_row = c.fetchone()
+    platform_name = platform_row[0] if platform_row else "Unknown Platform"
     conn.close()
     message = (
         "🎉✨ **PREMIUM ACCOUNT ACTIVATED!** ✨🎉\n\n"
-        "📦 (PLATFORM) Elite Accounts\n\n"
+        f"📦 **{platform_name} Elite Accounts**\n\n"
         "🔑 **Your Login Information:**\n\n"
         "```\nACCOUNT\n```\n\n"
         "📌 **How to Use:**\n"
-        "📋 Copy the Mail And Pasword carefully.\n"
+        "📋 Copy the credentials carefully.\n"
         "🌍 Visit the platform website or open the app.\n"
         "🔐 Log in using these details.\n\n"
         "⚠️ **Important Reminders:**\n"
@@ -225,11 +230,11 @@ async def claim_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, data: 
         "• 🔄 Change your password if possible.\n"
         "• ⏳ Account remains valid until revoked.\n\n"
         "Enjoy your premium experience! 🎥🍿\n"
-        "For support, contact: @onecore5 @wantan1 @ShanksIsback @MrLazyOp"
+        "For support, contact: @onecore5 @wantan1 @Shanksisback Dm @MrLazyOp To Report Glitches/errors"
     )
     keyboard = [[InlineKeyboardButton(text="🏠 Back", callback_data="menu_rewards")]]
     await query.edit_message_media(
         media=InputMediaPhoto(media=BANNER_URL, caption=message, parse_mode=ParseMode.MARKDOWN),
         reply_markup=InlineKeyboardMarkup(keyboard)
-  )
-  
+    )
+    
