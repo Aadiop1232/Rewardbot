@@ -10,7 +10,7 @@ from telegram import (
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 from config import REQUIRED_CHANNELS
-from database import add_user, mark_user_verified, add_user_log, is_admin, is_owner, get_user
+from database import add_user, mark_user_verified, add_user_log, is_admin, is_owner, get_user, ban_user, unban_user, add_admin
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +142,8 @@ async def referral_system_callback(update: Update, context: ContextTypes.DEFAULT
 @error_handler
 async def get_referral_link_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    # Replace 'YourBot' with your bot's actual username.
-    ref_link = f"t.me/ShadowRewardsBot?start=ref{query.from_user.id}"
+    # Replace 'YourBot' with your actual bot username.
+    ref_link = f"https://t.me/ShadowRewardsBot?start=ref{query.from_user.id}"
     await query.answer("Referral Link Generated")
     await query.edit_message_text(
         text=f"Your Referral Link:\n{ref_link}",
@@ -170,6 +170,59 @@ async def menu_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def menu_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.edit_message_text(text="Main Menu", reply_markup=get_main_menu_keyboard())
+
+# Missing command implementations added below:
+
+@error_handler
+async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Bans a user (admin only). Usage: /ban <user_id>"""
+    if not context.args:
+        await update.message.reply_text("Usage: /ban <user_id>")
+        return
+    try:
+        target_user = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("User ID must be a number.")
+        return
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Access denied. Only admins can ban users.")
+        return
+    ban_user(target_user)
+    await update.message.reply_text(f"User {target_user} has been banned.")
+
+@error_handler
+async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Unbans a user (admin only). Usage: /unban <user_id>"""
+    if not context.args:
+        await update.message.reply_text("Usage: /unban <user_id>")
+        return
+    try:
+        target_user = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("User ID must be a number.")
+        return
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Access denied. Only admins can unban users.")
+        return
+    unban_user(target_user)
+    await update.message.reply_text(f"User {target_user} has been unbanned.")
+
+@error_handler
+async def add_owner_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Adds a new owner (owner only). Usage: /addowner <user_id>"""
+    if not context.args:
+        await update.message.reply_text("Usage: /addowner <user_id>")
+        return
+    try:
+        new_owner = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("User ID must be a number.")
+        return
+    if not is_owner(update.effective_user.id):
+        await update.message.reply_text("Access denied. Only owners can add new owners.")
+        return
+    add_admin(new_owner, role='owner')
+    await update.message.reply_text(f"User {new_owner} has been added as an owner.")
 
 @error_handler
 async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -208,7 +261,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # If message is from a channel, ignore it.
     if update.effective_chat and update.effective_chat.type == "channel":
         return
-
     user_id = update.effective_user.id
     if context.user_data.get('awaiting_review'):
         review_text = update.message.text
@@ -242,3 +294,4 @@ async def claim_key_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Invalid key.")
     conn.close()
+                           
