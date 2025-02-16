@@ -1,7 +1,8 @@
 # admin_features.py
 import logging
 import sqlite3
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputMediaPhoto, ParseMode
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputMediaPhoto
+from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from config import DEFAULT_OWNERS, BANNER_URL
 from handlers import error_handler
@@ -27,7 +28,6 @@ async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Use the options below to manage platforms, stock, channels, users, keys, and more.\n"
         "Select an option to begin."
     )
-    # Show the banner image with caption and inline keyboard.
     await query.edit_message_media(
         media=InputMediaPhoto(media=BANNER_URL, caption=caption, parse_mode=ParseMode.MARKDOWN),
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -117,7 +117,7 @@ async def admin_users_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         "• To ban a user, use:\n"
         "      `/ban <user_id>`\n\n"
         "• To unban a user, use:\n"
-        "      `/unban <user_id>`"
+        "      `/unban <user_id>`\n"
     )
     keyboard = [[InlineKeyboardButton("⬅️ Back", callback_data="menu_admin")]]
     await query.edit_message_text(
@@ -135,7 +135,7 @@ async def admin_key_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "      `/genkey normal <quantity>`\n\n"
         "• To generate premium keys (35 points each), use:\n"
         "      `/genkey premium <quantity>`\n\n"
-        "These keys can be claimed by users using the `/claim <key>` command."
+        "These keys can then be claimed by users with the `/claim <key>` command."
     )
     keyboard = [[InlineKeyboardButton("⬅️ Back", callback_data="menu_admin")]]
     await query.edit_message_text(
@@ -149,7 +149,7 @@ async def admin_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     message = (
         "❓ **Admin Help** ❓\n\n"
-        "Here is a complete list of admin commands and their usage:\n\n"
+        "Below is a complete list of admin commands and their usage:\n\n"
         "1. **/addplatform <platform_name>**\n"
         "   ➜ Adds a new reward platform.\n\n"
         "2. **/removeplatform <platform_name>**\n"
@@ -177,7 +177,7 @@ async def admin_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         "13. **/adminlist**\n"
         "    ➜ Displays a list of all current admins and their roles.\n\n"
         "14. **/adminlogs**\n"
-        "    ➜ Displays recent admin actions/logs."
+        "    ➜ Displays recent admin action logs."
     )
     keyboard = [[InlineKeyboardButton("⬅️ Back", callback_data="menu_admin")]]
     await query.edit_message_text(
@@ -212,7 +212,7 @@ async def admin_list_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def admin_ban_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Provides instructions for banning/unbanning an admin.
-    Actual banning/unbanning should be performed via commands (/banadmin and /unbanadmin).
+    Actual banning/unbanning should be performed via text commands (/banadmin and /unbanadmin).
     """
     query = update.callback_query
     message = (
@@ -272,4 +272,3 @@ async def admin_logs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             message += f"• Admin ID: {log[0]}, Action: {log[1]}, At: {log[2]}\n"
     keyboard = [[InlineKeyboardButton("⬅️ Back", callback_data="admin_management")]]
     await query.edit_message_text(text=message, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-                                    
