@@ -1,23 +1,27 @@
 # handlers.py
 import logging
 import sqlite3
+import csv
+import io
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputMediaPhoto
 from telegram.constants import ParseMode
-from telegram.ext import CallbackContext
+from telegram.ext import CallbackContext, ContextTypes
 from config import REQUIRED_CHANNELS
 from database import (
     add_user,
     mark_user_verified,
+    get_user,
     add_user_log,
     is_admin,
     is_owner,
-    get_user,
+    generate_key,
     ban_user,
     unban_user,
     add_admin
 )
 
 logger = logging.getLogger(__name__)
+USERS_PER_PAGE = 10
 
 # -------------------------
 # Keyboard Builders
@@ -34,8 +38,21 @@ def get_verification_keyboard():
             row = []
     if row:
         keyboard.append(row)
-    # The verification keyboard also includes a "Verify" button.
+    # The verification keyboard includes a "Verify" button.
     keyboard.append([InlineKeyboardButton(text="Verify", callback_data="verify")])
+    return InlineKeyboardMarkup(keyboard)
+
+def get_language_keyboard():
+    languages = ['en']
+    keyboard = []
+    row = []
+    for lang in languages:
+        row.append(InlineKeyboardButton(text=lang.upper(), callback_data=f"set_lang_{lang}"))
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
     return InlineKeyboardMarkup(keyboard)
 
 def get_main_menu_keyboard():
@@ -46,6 +63,7 @@ def get_main_menu_keyboard():
             InlineKeyboardButton(text="Referral System", callback_data="menu_referral")
         ],
         [
+            InlineKeyboardButton(text="Change Language", callback_data="change_lang"),
             InlineKeyboardButton(text="Review/Suggestion", callback_data="menu_review"),
             InlineKeyboardButton(text="Admin Panel", callback_data="menu_admin")
         ],
@@ -55,19 +73,62 @@ def get_main_menu_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# (Additional keyboards for admin functions or user list can be defined in their own modules.)
+def get_admin_menu_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton(text="Add/Remove Platform", callback_data="admin_platform"),
+            InlineKeyboardButton(text="Add Stock", callback_data="admin_stock")
+        ],
+        [
+            InlineKeyboardButton(text="Add Channel", callback_data="admin_channel"),
+            InlineKeyboardButton(text="Admin Management", callback_data="admin_management")
+        ],
+        [
+            InlineKeyboardButton(text="User Section", callback_data="admin_users"),
+            InlineKeyboardButton(text="Key Generator", callback_data="admin_key")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-# -------------------------
-# Error Handling Decorator
-# -------------------------
+def get_user_list_keyboard(page):
+    conn = sqlite3.connect("bot.db")
+    c = conn.cursor()
+    offset = (page - 1) * USERS_PER_PAGE
+    c.execute("SELECT user_id, username FROM users LIMIT ? OFFSET ?", (USERS_PER_PAGE, offset))
+    users = c.fetchall()
+    c.execute("SELECT COUNT(*) FROM users")
+    total = c.fetchone()[0]
+    conn.close()
+    keyboard = []
+    for u in users:
+        keyboard.append([InlineKeyboardButton(text=f"{u[1]} ({u[0]})", callback_data="noop")])
+    nav_buttons = []
+    if page > 1:
+        nav_buttons.append(InlineKeyboardButton(text="« Prev", callback_data=f"userlist_page_{page-1}"))
+    if offset + USERS_PER_PAGE < total:
+        nav_buttons.append(InlineKeyboardButton(text="Next »", callback_data=f"userlist_page_{page+1}"))
+    if nav_buttons:
+        keyboard.append(nav_buttons)
+    keyboard.append([InlineKeyboardButton(text="Back", callback_data="menu_admin")])
+    return InlineKeyboardMarkup(keyboard)
 
-def error_handler(func):
-    async def wrapper(update: Update, context: CallbackContext):
+def parse_stock_file(file_content, file_type="text"):
+    accounts = []
+    if file_type == "csv":
         try:
-            return await func(update, context)
+            f = io.StringIO(file_content)
+            reader = csv.reader(f)
+            for row in reader:
+                if row and any(row):
+                    accounts.append(":".join(row))
         except Exception as e:
-            logger.error(f"Error in handler {func.__name__}: {e}")
-    return wrapper
+            logger.error(f"CSV parsing error: {e}")
+    else:
+        for line in file_content.splitlines():
+            line = line.strip()
+            if line and ":" in line:
+                accounts.append(line)
+    return accounts
 
 # -------------------------
 # Core Handlers
@@ -113,7 +174,7 @@ async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         mark_user_verified(user_id)
         add_user_log(user_id, "Verified")
-        await query.answer("You are verified!")
+        await query.answer("You are verified! Welcome to the main menu.")
         await query.edit_message_text(
             text="You are verified! Welcome to the main menu.",
             reply_markup=get_main_menu_keyboard()
@@ -145,7 +206,7 @@ async def referral_system_callback(update: Update, context: ContextTypes.DEFAULT
     c.execute("SELECT referred_id, points_earned, timestamp FROM referrals WHERE referrer_id = ?", (user_id,))
     referrals = c.fetchall()
     total_refs = len(referrals)
-    total_points = sum(row[1] for row in referrals) if referrals else 0
+    total_points = sum(r[1] for r in referrals) if referrals else 0
     details = "\n".join([f"• Referred: {r[0]}, Points: {r[1]}, At: {r[2]}" for r in referrals]) or "No referrals yet."
     message = (
         f"Referral System:\nTotal Referrals: {total_refs}\nEarned Points: {total_points}\n\nDetails:\n{details}"
@@ -300,7 +361,6 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
 
 @error_handler
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Ignore messages from channels.
     if update.effective_chat and update.effective_chat.type == "channel":
         return
     if context.user_data.get('awaiting_review'):
@@ -310,4 +370,4 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['awaiting_review'] = False
     else:
         await update.message.reply_text("Command not recognized. Use /help for assistance.")
-    
+                                                
