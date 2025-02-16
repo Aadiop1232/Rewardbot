@@ -84,6 +84,7 @@ async def addstock_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def receive_stock_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Processes an uploaded TXT file containing stock details.
+    Each account entry is separated by a blank line.
     """
     if 'awaiting_stock_file' not in context.user_data:
         return  # Not expecting a file.
@@ -185,8 +186,8 @@ async def show_platform_stock(update: Update, context: ContextTypes.DEFAULT_TYPE
 @error_handler
 async def claim_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
     """
-    When a user taps 'Claim', this function selects one random unclaimed stock entry,
-    marks it as claimed, and sends its details with the actual platform name.
+    When a user taps 'Claim', selects one random unclaimed stock entry,
+    marks it as claimed, retrieves the actual platform name, and sends its details.
     """
     query = update.callback_query
     try:
@@ -211,7 +212,6 @@ async def claim_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, data: 
     stock_id, account_details = result
     c.execute("UPDATE stock SET is_claimed = 1 WHERE stock_id = ?", (stock_id,))
     conn.commit()
-    # Retrieve the platform name
     c.execute("SELECT name FROM platforms WHERE platform_id = ?", (platform_id,))
     platform_row = c.fetchone()
     platform_name = platform_row[0] if platform_row else "Unknown Platform"
@@ -230,7 +230,7 @@ async def claim_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, data: 
         "• 🔄 Change your password if possible.\n"
         "• ⏳ Account remains valid until revoked.\n\n"
         "Enjoy your premium experience! 🎥🍿\n"
-        "For support, contact: @onecore5 @wantan1 @Shanksisback Dm @MrLazyOp To Report Glitches/errors"
+        "For support, contact: @onecore @wantan1 @Shanksisback @MrLazyOp"
     )
     keyboard = [[InlineKeyboardButton(text="🏠 Back", callback_data="menu_rewards")]]
     await query.edit_message_media(
