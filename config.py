@@ -1,10 +1,10 @@
 # config.py
 import os
 
-# Bot token (set via environment variable or directly here)
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8017553859:AAHacxJhRk97GtKI8rNhjoXht_xh77kwiiQ")
+# Bot token – either set via an environment variable or directly here.
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7760154469:AAHUQ_a6ODMubGpY9bqxVa2NqIvXCF2IWiE")
 
-# Channels required for verification (bot must be admin in these)
+# Required channels for verification (the bot must be admin in these channels).
 REQUIRED_CHANNELS = [
     '@shadowsquad0',
     '@Originlabs',
@@ -12,8 +12,11 @@ REQUIRED_CHANNELS = [
     '@Binhub_Originlabs'
 ]
 
-# Notification channel
+# Notification channel where scheduled messages are sent.
 NOTIFICATION_CHANNEL = '@shadowsquad0'
 
-# Default owner IDs (replace with actual Telegram user IDs)
-DEFAULT_OWNERS = [7436974867, 7218606355, 5933410316, 5822279535]
+# Default owner IDs – replace with the actual Telegram user IDs of your bot owners.
+DEFAULT_OWNERS = [7436974867, 7218606355, 5933410316, 5822279535]  # Example: [7436974867, 7218606355]
+
+# Banner image URL for all messages.
+BANNER_URL = "https://i.imgur.com/mDAjGNm.jpeg"
