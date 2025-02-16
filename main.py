@@ -14,6 +14,7 @@ from database import init_db, add_admin
 from handlers import (
     start,
     callback_query_handler,
+    message_handler,
     claim_key_command,
     ban_command,
     unban_command,
@@ -23,10 +24,9 @@ from handlers import (
 from basic_features import addplatform_command, addstock_command
 from admin_features import givepoints_command
 
-# Patch the event loop (useful in environments like Termux)
+# Patch the event loop (useful in Termux and similar environments)
 nest_asyncio.apply()
 
-# Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO,
@@ -35,12 +35,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def add_default_owners():
-    # Add default owners (admins with the "owner" role) from config.
+    """Adds default owner IDs from config into the admins table with role 'owner'."""
     for owner_id in DEFAULT_OWNERS:
         add_admin(owner_id, role='owner')
 
 def scheduled_notification(context):
-    # Send a scheduled notification to the notification channel.
+    """Sends a scheduled notification to the notification channel."""
     import asyncio
     asyncio.create_task(
         context.bot.send_message(
@@ -50,14 +50,14 @@ def scheduled_notification(context):
     )
 
 async def main():
-    # Initialize the database and add default owner admins.
+    # 1. Initialize the database and add default owners
     init_db()
     add_default_owners()
-    
-    # Build the application.
+
+    # 2. Build the bot application
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # Register core command handlers.
+    # 3. Register command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("claim", claim_key_command))
     application.add_handler(CommandHandler("ban", ban_command))
@@ -67,19 +67,16 @@ async def main():
     application.add_handler(CommandHandler("addstock", addstock_command))
     application.add_handler(CommandHandler("givepoints", givepoints_command))
     application.add_handler(CommandHandler("help", menu_help_callback))
-    
-    # Register callback query handler for inline buttons.
+
+    # 4. Register callback query and text message handlers
     application.add_handler(CallbackQueryHandler(callback_query_handler))
-    
-    # Fallback message handler for unrecognized text.
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
-                                            lambda update, context: update.message.reply_text("Command not recognized. Use /help for assistance.")))
-    
-    # Schedule periodic notifications.
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+
+    # 5. Schedule periodic notifications
     job_queue = application.job_queue
     job_queue.run_repeating(scheduled_notification, interval=3600, first=10)
-    
-    # Start polling.
+
+    # 6. Run the bot
     await application.run_polling()
 
 if __name__ == '__main__':
