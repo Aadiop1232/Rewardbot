@@ -1,0 +1,217 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import threading
+import time
+import re
+
+class ComboTool:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Combo Tool")
+        self.root.configure(bg="white")
+
+        # Data holders
+        self.combos = []          # original combos list
+        self.domains = []         # domains list (optional)
+        self.cleaned_combos = []  # results from cleaning
+        self.sorted_counts = 0    # count of sorted combos
+
+        # Process control variables
+        self.processing_thread = None
+        self.stop_requested = False
+        self.pause_flag = threading.Event()
+        self.pause_flag.set()  # initially not paused
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Top label
+        top_label = tk.Label(self.root, text="Maked by TeamShadow", bg="white", fg="black", font=("Arial", 12))
+        top_label.pack(pady=10)
+
+        # Frame for Load buttons
+        load_frame = tk.Frame(self.root, bg="white")
+        load_frame.pack(pady=5)
+
+        # Button style settings
+        btn_style = {"bg": "white", "fg": "black", "relief": "solid", "borderwidth": 1, "highlightbackground": "black"}
+        
+        self.load_combos_btn = tk.Button(load_frame, text="Load Combos", command=self.load_combos, **btn_style)
+        self.load_combos_btn.grid(row=0, column=0, padx=5, pady=5)
+
+        self.load_domains_btn = tk.Button(load_frame, text="Load Domains", command=self.load_domains, **btn_style)
+        self.load_domains_btn.grid(row=0, column=1, padx=5, pady=5)
+
+        # Frame for Sort and Clean buttons
+        action_frame = tk.Frame(self.root, bg="white")
+        action_frame.pack(pady=5)
+
+        self.sort_combos_btn = tk.Button(action_frame, text="Sort Combos", command=self.sort_combos, **btn_style)
+        self.sort_combos_btn.grid(row=0, column=0, padx=5, pady=5)
+
+        self.clean_combos_btn = tk.Button(action_frame, text="Clean Combos", command=self.clean_combos, **btn_style)
+        self.clean_combos_btn.grid(row=0, column=1, padx=5, pady=5)
+
+        # Frame for Start/Stop/Resume buttons
+        control_frame = tk.Frame(self.root, bg="white")
+        control_frame.pack(pady=5)
+
+        self.start_btn = tk.Button(control_frame, text="Start", command=self.start_process, **btn_style)
+        self.start_btn.grid(row=0, column=0, padx=5, pady=5)
+
+        self.stop_btn = tk.Button(control_frame, text="Stop", command=self.stop_process, **btn_style)
+        self.stop_btn.grid(row=0, column=1, padx=5, pady=5)
+
+        self.resume_btn = tk.Button(control_frame, text="Resume", command=self.resume_process, **btn_style)
+        self.resume_btn.grid(row=0, column=2, padx=5, pady=5)
+
+        # Text widget to display loaded combos
+        self.combos_text = tk.Text(self.root, height=10, bg="white", fg="black", relief="solid", borderwidth=1)
+        self.combos_text.pack(padx=5, pady=5, fill=tk.BOTH, expand=True)
+
+        # Progress bar and stats
+        progress_frame = tk.Frame(self.root, bg="white")
+        progress_frame.pack(pady=5, fill=tk.X)
+
+        self.progress_var = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar.pack(fill=tk.X, padx=5, pady=5)
+
+        # Stats label with green text
+        self.stats_label = tk.Label(self.root, text="Total combos: 0    Cleaned: 0    Sorted: 0", bg="white", fg="green", font=("Arial", 10))
+        self.stats_label.pack(pady=5)
+
+    def flash_button(self, button):
+        original_bg = button.cget("bg")
+        button.config(bg="lightgreen")
+        self.root.after(500, lambda: button.config(bg=original_bg))
+
+    def load_combos(self):
+        filename = filedialog.askopenfilename(title="Select Combos File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r") as f:
+                    self.combos = [line.strip() for line in f if line.strip()]
+                self.update_combos_text()
+                self.update_stats()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load combos:\n{e}")
+
+    def load_domains(self):
+        filename = filedialog.askopenfilename(title="Select Domains File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r") as f:
+                    self.domains = [line.strip().lower() for line in f if line.strip()]
+                messagebox.showinfo("Domains Loaded", f"{len(self.domains)} domains loaded.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load domains:\n{e}")
+
+    def sort_combos(self):
+        if not self.combos:
+            messagebox.showwarning("Warning", "Please load combos first!")
+            return
+        if not self.domains:
+            messagebox.showwarning("Warning", "Please load domains to perform sorting!")
+            return
+
+        # Flash the button green to indicate selection
+        self.flash_button(self.sort_combos_btn)
+
+        domain_files = {}
+        sorted_count = 0
+        for combo in self.combos:
+            parts = combo.split(":")
+            if len(parts) < 2:
+                continue
+            email = parts[0]
+            if "@" not in email:
+                continue
+            domain = email.split("@")[-1].lower()
+            if domain in self.domains:
+                sorted_count += 1
+                if domain not in domain_files:
+                    domain_files[domain] = []
+                domain_files[domain].append(combo)
+        # Write combos for each domain to its own file
+        for domain, combos_list in domain_files.items():
+            try:
+                with open(f"sorted_{domain}.txt", "w") as f:
+                    for combo in combos_list:
+                        f.write(combo + "\n")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to write sorted file for {domain}:\n{e}")
+        self.sorted_counts = sorted_count
+        self.update_stats()
+        messagebox.showinfo("Sorting Completed", f"Sorted combos for domains. Total sorted: {sorted_count}")
+
+    def clean_combos(self):
+        if not self.combos:
+            messagebox.showwarning("Warning", "Please load combos first!")
+            return
+
+        # Flash the button green to indicate selection
+        self.flash_button(self.clean_combos_btn)
+
+        cleaned = []
+        pattern = re.compile(r"[^:\s]+:[^\s]+")
+        for combo in self.combos:
+            match = pattern.search(combo)
+            if match:
+                cleaned.append(match.group())
+        self.cleaned_combos = cleaned
+        try:
+            with open("cleaned_combos.txt", "w") as f:
+                for combo in cleaned:
+                    f.write(combo + "\n")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to write cleaned combos:\n{e}")
+        self.update_stats()
+        messagebox.showinfo("Cleaning Completed", f"Cleaned combos. Total cleaned: {len(cleaned)}")
+
+    def start_process(self):
+        if not self.combos:
+            messagebox.showwarning("Warning", "Please load combos first!")
+            return
+        if self.processing_thread and self.processing_thread.is_alive():
+            messagebox.showwarning("Warning", "Process already running!")
+            return
+        self.stop_requested = False
+        self.processing_thread = threading.Thread(target=self.process_combos)
+        self.processing_thread.start()
+
+    def stop_process(self):
+        self.stop_requested = True
+        self.pause_flag.clear()
+
+    def resume_process(self):
+        self.pause_flag.set()
+
+    def process_combos(self):
+        total = len(self.combos)
+        for i, combo in enumerate(self.combos):
+            if self.stop_requested:
+                break
+            self.pause_flag.wait()
+            time.sleep(0.1)
+            progress = ((i + 1) / total) * 100
+            self.progress_var.set(progress)
+            self.root.after(0, self.stats_label.config, 
+                            {"text": f"Total combos: {total}    Cleaned: {len(self.cleaned_combos)}    Sorted: {self.sorted_counts}    Processing: {int(progress)}%"})
+        self.progress_var.set(100)
+        self.root.after(0, self.stats_label.config, 
+                        {"text": f"Total combos: {total}    Cleaned: {len(self.cleaned_combos)}    Sorted: {self.sorted_counts}    Processing: 100%"})
+
+    def update_combos_text(self):
+        self.combos_text.delete(1.0, tk.END)
+        for combo in self.combos:
+            self.combos_text.insert(tk.END, combo + "\n")
+
+    def update_stats(self):
+        total = len(self.combos)
+        self.stats_label.config(text=f"Total combos: {total}    Cleaned: {len(self.cleaned_combos)}    Sorted: {self.sorted_counts}")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ComboTool(root)
+    root.mainloop()
