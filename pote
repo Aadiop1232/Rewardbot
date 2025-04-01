@@ -1,0 +1,227 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import urllib.parse, time
+from PIL import Image, ImageTk
+
+class ComboExtractorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Multi Combo Tool")
+        self.root.geometry("800x600")
+        self.root.resizable(False, False)
+        
+        # Load background image (from your guide)
+        try:
+            bg_image = Image.open("ad.jpg")
+            bg_image = bg_image.resize((800, 600), Image.ANTIALIAS)
+            self.bg_photo = ImageTk.PhotoImage(bg_image)
+        except Exception as e:
+            messagebox.showerror("Error", f"Background image not found or error: {e}")
+            self.bg_photo = None
+        
+        # Create a Canvas to hold the background and widgets
+        self.canvas = tk.Canvas(root, width=800, height=600, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
+        if self.bg_photo:
+            self.canvas.create_image(0, 0, image=self.bg_photo, anchor="nw")
+        
+        # Header label (using your custom font if installed, else fallback)
+        header_text = "MULTI COMBO TOOL BY ORIGIN LABS"
+        try:
+            header_font = ("Metrim Letter Regular", 28)
+        except Exception:
+            header_font = ("Courier", 28, "bold")
+        self.header_label = tk.Label(root, text=header_text, font=header_font, fg="red", bg="black")
+        self.canvas.create_window(400, 50, window=self.header_label)  # centered at top
+        
+        # Navigation button for combo extraction (other buttons could be added similarly)
+        button_font = ("Helvetica", 16, "bold")
+        self.btn_extractor = tk.Button(root, text="Combo Extractor", font=button_font,
+                                        bg="red", fg="black", bd=2, relief="ridge",
+                                        command=self.open_extraction_window)
+        self.canvas.create_window(400, 150, window=self.btn_extractor)
+    
+    def open_extraction_window(self):
+        # Create a new window for the extraction process
+        self.ext_win = tk.Toplevel(self.root)
+        self.ext_win.title("Combo Extraction")
+        self.ext_win.geometry("800x600")
+        self.ext_win.resizable(False, False)
+        
+        # Use the same background image (if available)
+        try:
+            bg = Image.open("ad.jpg")
+            bg = bg.resize((800, 600), Image.ANTIALIAS)
+            self.ext_bg = ImageTk.PhotoImage(bg)
+            self.ext_canvas = tk.Canvas(self.ext_win, width=800, height=600, highlightthickness=0)
+            self.ext_canvas.pack(fill="both", expand=True)
+            self.ext_canvas.create_image(0, 0, image=self.ext_bg, anchor="nw")
+        except Exception:
+            self.ext_canvas = tk.Canvas(self.ext_win, width=800, height=600)
+            self.ext_canvas.pack(fill="both", expand=True)
+        
+        # Create a control frame for file loading and options
+        ctrl_frame = tk.Frame(self.ext_win, bg="black")
+        ctrl_frame.place(x=50, y=50)
+        
+        self.btn_load_ulp = tk.Button(ctrl_frame, text="Load ULP File", command=self.load_ulp,
+                                      font=("Helvetica", 14), bg="red", fg="black", width=15)
+        self.btn_load_ulp.grid(row=0, column=0, padx=5, pady=5)
+        
+        self.btn_load_req = tk.Button(ctrl_frame, text="Load Requests File", command=self.load_requests,
+                                      font=("Helvetica", 14), bg="red", fg="black", width=15)
+        self.btn_load_req.grid(row=0, column=1, padx=5, pady=5)
+        
+        tk.Label(ctrl_frame, text="Select Format:", font=("Helvetica", 14), bg="black", fg="white")\
+            .grid(row=1, column=0, padx=5, pady=5)
+        self.format_var = tk.StringVar(value="mail:pass")
+        self.format_menu = ttk.Combobox(ctrl_frame, textvariable=self.format_var,
+                                        values=["mail:pass", "user:pass", "login:pass"],
+                                        font=("Helvetica", 14), width=13, state="readonly")
+        self.format_menu.grid(row=1, column=1, padx=5, pady=5)
+        
+        self.btn_start = tk.Button(ctrl_frame, text="Start Extraction", command=self.start_extraction,
+                                   font=("Helvetica", 14), bg="red", fg="black", width=15)
+        self.btn_start.grid(row=2, column=0, columnspan=2, pady=10)
+        
+        # Create a Text widget to display results
+        self.results_text = tk.Text(self.ext_win, font=("Helvetica", 12), bg="white", fg="black")
+        self.results_text.place(x=50, y=300, width=700, height=250)
+        
+        # Initialize storage for files
+        self.ulp_lines = []
+        self.request_sites = []
+    
+    def load_ulp(self):
+        filename = filedialog.askopenfilename(title="Select ULP File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.ulp_lines = [line.strip() for line in f if line.strip()]
+                messagebox.showinfo("ULP Loaded", f"Loaded {len(self.ulp_lines)} URLs.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading ULP file: {e}")
+    
+    def load_requests(self):
+        filename = filedialog.askopenfilename(title="Select Requests File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.request_sites = [line.strip().lower() for line in f if line.strip()]
+                messagebox.showinfo("Requests Loaded", f"Loaded {len(self.request_sites)} request sites.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading Requests file: {e}")
+    
+    def start_extraction(self):
+        if not self.ulp_lines:
+            messagebox.showwarning("Warning", "Please load a ULP file first.")
+            return
+        if not self.request_sites:
+            messagebox.showwarning("Warning", "Please load a Requests file first.")
+            return
+        
+        selected_format = self.format_var.get()
+        start_time = time.time()
+        total_lines = len(self.ulp_lines)
+        error_lines = 0
+        
+        # Dictionary to store results per request site:
+        # { site: {"found": int, "duplicates": int, "unique": set(), "combos": list() } }
+        results = {}
+        
+        for line in self.ulp_lines:
+            try:
+                parsed = urllib.parse.urlparse(line)
+            except Exception:
+                error_lines += 1
+                continue
+            netloc = parsed.netloc.lower()
+            
+            # Find a matching request site
+            matched = False
+            site_key = ""
+            for req in self.request_sites:
+                if req in netloc:
+                    matched = True
+                    site_key = req
+                    break
+            if not matched:
+                error_lines += 1
+                continue
+            
+            # Extract credential candidate from the URL:
+            cred_candidate = parsed.path
+            if not cred_candidate or cred_candidate == "/":
+                prefix = f"{parsed.scheme}://{parsed.netloc}"
+                cred_candidate = line[len(prefix):].lstrip("/?")
+            if "/" in cred_candidate:
+                cred_candidate = cred_candidate.split("/")[-1]
+            
+            # Improved extraction:
+            parts = cred_candidate.split(":")
+            final_combo = None
+            email_index = None
+            for i, part in enumerate(parts):
+                if "@" in part:
+                    email_index = i
+                    break
+            if email_index is not None and email_index + 1 < len(parts):
+                # If found an email, assume that is the email and everything after is the password
+                email = parts[email_index]
+                password = ":".join(parts[email_index+1:])
+                final_combo = email + ":" + password
+            elif len(parts) >= 2:
+                final_combo = parts[0] + ":" + ":".join(parts[1:])
+            else:
+                error_lines += 1
+                continue
+            
+            # Validate based on selected format:
+            if selected_format == "mail:pass":
+                if "@" not in final_combo.split(":")[0]:
+                    error_lines += 1
+                    continue
+            # For "user:pass" or "login:pass", we assume the format is acceptable.
+            
+            # Store the result under the matching site:
+            if site_key not in results:
+                results[site_key] = {"found": 0, "duplicates": 0, "unique": set(), "combos": []}
+            results[site_key]["found"] += 1
+            if final_combo in results[site_key]["unique"]:
+                results[site_key]["duplicates"] += 1
+            else:
+                results[site_key]["unique"].add(final_combo)
+                results[site_key]["combos"].append(final_combo)
+        
+        end_time = time.time()
+        time_taken = end_time - start_time
+        
+        # Write each site's unique combos to a separate file
+        for site, data in results.items():
+            if data["unique"]:
+                try:
+                    with open(f"{site}_combos.txt", "w", encoding="utf-8") as f:
+                        for combo in data["combos"]:
+                            f.write(combo + "\n")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error writing file for {site}: {e}")
+        
+        # Build the summary text
+        summary = ""
+        for site, data in results.items():
+            summary += f"Request: {site}\n"
+            summary += f"  Found: {data['found']}\n"
+            summary += f"  Duplicates: {data['duplicates']}\n"
+            summary += f"  Final Output: {len(data['unique'])}\n\n"
+        summary += f"Total Lines: {total_lines}\n"
+        summary += f"Error Lines: {error_lines}\n"
+        summary += f"Time Taken: {time_taken:.2f} seconds\n"
+        
+        self.results_text.delete("1.0", tk.END)
+        self.results_text.insert(tk.END, summary)
+        messagebox.showinfo("Extraction Complete", "Extraction completed! Check the results and output files.")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ComboExtractorApp(root)
+    root.mainloop()
