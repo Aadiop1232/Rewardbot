@@ -385,7 +385,7 @@ class CcCleanerFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#f7f7f7")
         self.controller = controller
-        self.cc_lines = []
+        self.cc_lines = []  # Initialize cc_lines
         
         title = tk.Label(self, text="Cc Cleaner", font=("Helvetica", 24, "bold"), bg="#f7f7f7", fg="#333")
         title.pack(pady=10)
@@ -408,53 +408,53 @@ class CcCleanerFrame(tk.Frame):
         btn_back.pack(pady=10)
         add_hover_effect(btn_back, "#ccffcc", "white")
     
-def load_ccs(self):
-    filename = filedialog.askopenfilename(title="Select Cc's File", filetypes=[("Text Files", "*.txt")])
-    if filename:
-        try:
-            with open(filename, "r", encoding="utf-8") as f:
-                self.cc_lines = [line.strip() for line in f if line.strip()]
-            messagebox.showinfo("Cc's Loaded", f"Loaded {len(self.cc_lines)} lines.")
-        except Exception as e:
-            messagebox.showerror("Error", f"Error loading Cc's file: {e}")
-
-def start_cleaning(self):
-    if not self.cc_lines:
-        messagebox.showwarning("Warning", "Please load a Cc's file first.")
-        return
+    def load_ccs(self):
+        filename = filedialog.askopenfilename(title="Select Cc's File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.cc_lines = [line.strip() for line in f if line.strip()]
+                messagebox.showinfo("Cc's Loaded", f"Loaded {len(self.cc_lines)} lines.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading Cc's file: {e}")
+    
+    def start_cleaning(self):
+        if not self.cc_lines:
+            messagebox.showwarning("Warning", "Please load a Cc's file first.")
+            return
         
-    cleaned = []
-    # Regex to match CC pattern:
-    # - 15 or 16 digits (card number)
-    # - Followed by one or more non-digit separators
-    # - 1-2 digits (month)
-    # - One or more non-digit separators
-    # - 2-4 digits (year)
-    # - One or more non-digit separators
-    # - 3-4 digits (CVV)
-    pattern = re.compile(r'(\d{15,16})\D+(\d{1,2})\D+(\d{2,4})\D+(\d{3,4})')
-    
-    for line in self.cc_lines:
-        match = pattern.search(line)
-        if match:
-            card = match.group(1)
-            month = match.group(2)
-            year = match.group(3)
-            cvv = match.group(4)
-            cleaned.append(f"{card}|{month}|{year}|{cvv}")
-    
-    try:
-        with open("cleaned_cc.txt", "w", encoding="utf-8") as f:
-            for cc in cleaned:
-                f.write(cc + "\n")
-    except Exception as e:
-        messagebox.showerror("Error", f"Error writing cleaned Cc file: {e}")
-        return
-    
-    summary = f"Total Lines: {len(self.cc_lines)}\nCleaned Cc's: {len(cleaned)}"
-    self.results_text.delete("1.0", tk.END)
-    self.results_text.insert(tk.END, summary)
-    messagebox.showinfo("Cleaning Complete", "Cc cleaning completed! Check cleaned_cc.txt.")
+        cleaned = []
+        # Regex to match a credit card pattern:
+        # - 15 or 16 digits (card number)
+        # - Followed by non-digit separator(s)
+        # - 1-2 digits (month)
+        # - Separator(s)
+        # - 2-4 digits (year)
+        # - Separator(s)
+        # - 3-4 digits (CVV)
+        pattern = re.compile(r'(\d{15,16})\D+(\d{1,2})\D+(\d{2,4})\D+(\d{3,4})')
+        
+        for line in self.cc_lines:
+            match = pattern.search(line)
+            if match:
+                card = match.group(1)
+                month = match.group(2)
+                year = match.group(3)
+                cvv = match.group(4)
+                cleaned.append(f"{card}|{month}|{year}|{cvv}")
+        
+        try:
+            with open("cleaned_cc.txt", "w", encoding="utf-8") as f:
+                for cc in cleaned:
+                    f.write(cc + "\n")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error writing cleaned Cc file: {e}")
+            return
+        
+        summary = f"Total Lines: {len(self.cc_lines)}\nCleaned Cc's: {len(cleaned)}"
+        self.results_text.delete("1.0", tk.END)
+        self.results_text.insert(tk.END, summary)
+        messagebox.showinfo("Cleaning Complete", "Cc cleaning completed! Check cleaned_cc.txt.")
 
 if __name__ == "__main__":
     app = App()
