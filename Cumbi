@@ -1,0 +1,60 @@
+import tkinter as tk
+from tkinter import ttk
+
+class ModernGUI(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Multi Combo Tool")
+        self.geometry("800x600")
+        self.resizable(False, False)
+        # Set a dark background color for the window
+        self.configure(bg="#2c2f33")
+        
+        # HEADER
+        header_frame = tk.Frame(self, bg="#23272a")
+        header_frame.pack(side="top", fill="x")
+        header_label = tk.Label(header_frame, text="MULTI COMBO TOOL BY ORIGIN LABS",
+                                font=("Helvetica", 28, "bold"), fg="#ff5555", bg="#23272a")
+        header_label.pack(pady=20)
+        
+        # NAVIGATION BAR
+        nav_frame = tk.Frame(self, bg="#2c2f33")
+        nav_frame.pack(side="top", fill="x", pady=10)
+        button_style = {
+            "font": ("Helvetica", 16, "bold"),
+            "bg": "#ff5555",
+            "fg": "#23272a",
+            "bd": 0,
+            "relief": "flat",
+            "activebackground": "#ff7777",
+            "cursor": "hand2",
+            "width": 15,
+            "height": 2
+        }
+        self.btn_extractor = tk.Button(nav_frame, text="Combo Extractor", **button_style)
+        self.btn_sorter    = tk.Button(nav_frame, text="Combo Sorter", **button_style)
+        self.btn_cleaner   = tk.Button(nav_frame, text="Combo Cleaner", **button_style)
+        self.btn_cc_cleaner= tk.Button(nav_frame, text="Cc Cleaner", **button_style)
+        # Arrange buttons in a grid
+        self.btn_extractor.grid(row=0, column=0, padx=10, pady=10)
+        self.btn_sorter.grid(row=0, column=1, padx=10, pady=10)
+        self.btn_cleaner.grid(row=0, column=2, padx=10, pady=10)
+        self.btn_cc_cleaner.grid(row=0, column=3, padx=10, pady=10)
+        
+        # CONTENT AREA (Placeholder for further functionality)
+        content_frame = tk.Frame(self, bg="#2c2f33")
+        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
+        content_label = tk.Label(content_frame, text="Content Area", font=("Helvetica", 20),
+                                  fg="white", bg="#2c2f33")
+        content_label.pack(expand=True)
+        
+        # FOOTER
+        footer_frame = tk.Frame(self, bg="#23272a")
+        footer_frame.pack(side="bottom", fill="x")
+        footer_label = tk.Label(footer_frame, text="Designed by TeamShadow", font=("Helvetica", 10),
+                                  fg="white", bg="#23272a")
+        footer_label.pack(pady=10)
+
+if __name__ == "__main__":
+    app = ModernGUI()
+    app.mainloop()
