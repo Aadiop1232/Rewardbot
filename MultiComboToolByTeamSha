@@ -1,16 +1,31 @@
 import os
 import re
 import time
+import datetime
+import urllib.parse
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-# --- Utility for hover effect ---
+# Utility function to create and return a results directory path
+def get_results_directory(category):
+    base_dir = "results"
+    if not os.path.exists(base_dir):
+        os.mkdir(base_dir)
+    category_dir = os.path.join(base_dir, category)
+    if not os.path.exists(category_dir):
+        os.mkdir(category_dir)
+    dt_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    result_folder = os.path.join(category_dir, dt_str)
+    os.mkdir(result_folder)
+    return result_folder
+
+# Utility for hover effect
 def add_hover_effect(widget, hover_bg, normal_bg):
     widget.bind("<Enter>", lambda e: widget.config(background=hover_bg))
     widget.bind("<Leave>", lambda e: widget.config(background=normal_bg))
     widget.original_bg = normal_bg
 
-# --- Main Application with Frame Swapping ---
+# Main Application using frame swapping
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -19,7 +34,6 @@ class App(tk.Tk):
         self.resizable(False, False)
         self.configure(bg="white")
         
-        # Create container frame for swapping pages
         container = tk.Frame(self, bg="white")
         container.pack(side="top", fill="both", expand=True)
         self.frames = {}
@@ -34,7 +48,7 @@ class App(tk.Tk):
         frame = self.frames[page_name]
         frame.tkraise()
 
-# --- Main Menu Frame ---
+# Main Menu Frame
 class MainMenu(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg="white")
@@ -63,7 +77,7 @@ class MainMenu(tk.Frame):
         footer = tk.Label(self, text="Designed by TeamShadow", font=("Helvetica", 10), bg="white", fg="gray")
         footer.pack(side="bottom", pady=20)
 
-# --- Combo Extractor Frame ---
+# Combo Extractor Frame
 class ComboExtractorFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#f7f7f7")
@@ -74,7 +88,6 @@ class ComboExtractorFrame(tk.Frame):
         title = tk.Label(self, text="Combo Extractor", font=("Helvetica", 24, "bold"), bg="#f7f7f7", fg="#333")
         title.pack(pady=10)
         
-        # Buttons to load files and choose format
         file_frame = tk.Frame(self, bg="#f7f7f7")
         file_frame.pack(pady=10)
         btn_load_ulp = tk.Button(file_frame, text="Load ULP File", command=self.load_ulp,
@@ -86,7 +99,6 @@ class ComboExtractorFrame(tk.Frame):
         add_hover_effect(btn_load_ulp, "#ccffcc", "white")
         add_hover_effect(btn_load_req, "#ccffcc", "white")
         
-        # Format selection
         format_frame = tk.Frame(self, bg="#f7f7f7")
         format_frame.pack(pady=5)
         tk.Label(format_frame, text="Select Format:", font=("Helvetica", 14), bg="#f7f7f7", fg="black")\
@@ -97,17 +109,20 @@ class ComboExtractorFrame(tk.Frame):
                                         font=("Helvetica", 14), width=15, state="readonly")
         self.format_menu.grid(row=0, column=1, padx=5, pady=5)
         
-        # Start Extraction button
         btn_start = tk.Button(self, text="Start Extraction", command=self.start_extraction,
                               font=("Helvetica", 14), bg="white", fg="black", width=20)
         btn_start.pack(pady=10)
         add_hover_effect(btn_start, "#ccffcc", "white")
         
-        # Results text area
-        self.results_text = tk.Text(self, font=("Helvetica", 12), bg="white", fg="black", height=10, width=80)
-        self.results_text.pack(pady=10)
+        results_frame = tk.Frame(self, bg="#f7f7f7")
+        results_frame.pack(pady=10)
+        scrollbar = tk.Scrollbar(results_frame)
+        scrollbar.pack(side="right", fill="y")
+        self.results_text = tk.Text(results_frame, font=("Helvetica", 12), bg="white", fg="black",
+                                     height=10, width=80, yscrollcommand=scrollbar.set)
+        self.results_text.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.results_text.yview)
         
-        # Back button
         btn_back = tk.Button(self, text="Back", command=lambda: controller.show_frame("MainMenu"),
                              font=("Helvetica", 12), bg="white", fg="black", width=10)
         btn_back.pack(pady=10)
@@ -165,7 +180,6 @@ class ComboExtractorFrame(tk.Frame):
                 error_lines += 1
                 continue
             
-            # Get credential candidate from path or remainder of URL
             cred_candidate = parsed.path
             if not cred_candidate or cred_candidate == "/":
                 prefix = f"{parsed.scheme}://{parsed.netloc}"
@@ -173,15 +187,27 @@ class ComboExtractorFrame(tk.Frame):
             if "/" in cred_candidate:
                 cred_candidate = cred_candidate.split("/")[-1]
             
-            # Use regex to extract email:password pattern (this will ignore any unwanted prefix)
+            final_combo = None
             match = re.search(r'([A-Za-z0-9_.+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9-.]+):(.+)', cred_candidate)
             if match:
                 final_combo = f"{match.group(1)}:{match.group(2)}"
             else:
-                error_lines += 1
-                continue
+                parts = cred_candidate.split(":")
+                email_index = None
+                for i, part in enumerate(parts):
+                    if "@" in part:
+                        email_index = i
+                        break
+                if email_index is not None and email_index + 1 < len(parts):
+                    email = parts[email_index]
+                    password = ":".join(parts[email_index+1:])
+                    final_combo = f"{email}:{password}"
+                elif len(parts) >= 2:
+                    final_combo = parts[0] + ":" + ":".join(parts[1:])
+                else:
+                    error_lines += 1
+                    continue
             
-            # Validate if format is "mail:pass"
             if selected_format == "mail:pass":
                 if "@" not in final_combo.split(":")[0]:
                     error_lines += 1
@@ -199,11 +225,14 @@ class ComboExtractorFrame(tk.Frame):
         end_time = time.time()
         time_taken = end_time - start_time
         
-        # Write each site's unique combos to a file
+        # Create results directory for extraction
+        results_dir = get_results_directory("From Combo Extraction")
+        
         for site, data in results.items():
             if data["unique"]:
+                filepath = os.path.join(results_dir, f"{site}_combos.txt")
                 try:
-                    with open(f"{site}_combos.txt", "w", encoding="utf-8") as f:
+                    with open(filepath, "w", encoding="utf-8") as f:
                         for combo in data["combos"]:
                             f.write(combo + "\n")
                 except Exception as e:
@@ -223,7 +252,6 @@ class ComboExtractorFrame(tk.Frame):
         self.results_text.insert(tk.END, summary)
         messagebox.showinfo("Extraction Complete", "Extraction completed! Check the output files.")
 
-# --- Combo Sorter Frame ---
 class ComboSorterFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#f7f7f7")
@@ -288,7 +316,6 @@ class ComboSorterFrame(tk.Frame):
         
         sorted_dict = {}
         for line in self.mails:
-            # Assume each line is in the format email:pass
             parts = line.split(":", 1)
             if len(parts) != 2:
                 continue
@@ -303,14 +330,17 @@ class ComboSorterFrame(tk.Frame):
                     sorted_dict[domain].append(f"{email}:{password}")
                     break
             if not matched:
-                # You could handle unmatched emails if needed
                 pass
+        
+        # Create results directory for sorter
+        results_dir = get_results_directory("From Combo Sorter")
         
         summary = ""
         for domain, combos in sorted_dict.items():
             summary += f"Domain: {domain} - {len(combos)} combos sorted\n"
+            filepath = os.path.join(results_dir, f"{domain}_sorted.txt")
             try:
-                with open(f"{domain}_sorted.txt", "w", encoding="utf-8") as f:
+                with open(filepath, "w", encoding="utf-8") as f:
                     for combo in combos:
                         f.write(combo + "\n")
             except Exception as e:
@@ -319,7 +349,6 @@ class ComboSorterFrame(tk.Frame):
         self.results_text.insert(tk.END, summary)
         messagebox.showinfo("Sorting Complete", "Sorting completed! Check the output files.")
 
-# --- Combo Cleaner Frame ---
 class ComboCleanerFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#f7f7f7")
@@ -363,12 +392,15 @@ class ComboCleanerFrame(tk.Frame):
             return
         
         cleaned = []
-        pattern = re.compile(r'^[^:\s]+:[^\s]+$')  # simple pattern for mail:pass
+        pattern = re.compile(r'^[^:\s]+:[^\s]+$')  # pattern for mail:pass
         for line in self.combos:
             if pattern.match(line):
                 cleaned.append(line)
+        # Create results directory for cleaner
+        results_dir = get_results_directory("From Combo Cleaner")
         try:
-            with open("cleaned_combos.txt", "w", encoding="utf-8") as f:
+            filepath = os.path.join(results_dir, "cleaned_combos.txt")
+            with open(filepath, "w", encoding="utf-8") as f:
                 for combo in cleaned:
                     f.write(combo + "\n")
         except Exception as e:
@@ -380,12 +412,11 @@ class ComboCleanerFrame(tk.Frame):
         self.results_text.insert(tk.END, summary)
         messagebox.showinfo("Cleaning Complete", "Cleaning completed! Check cleaned_combos.txt.")
 
-# --- Cc Cleaner Frame ---
 class CcCleanerFrame(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#f7f7f7")
         self.controller = controller
-        self.cc_lines = []  # Initialize cc_lines
+        self.cc_lines = []
         
         title = tk.Label(self, text="Cc Cleaner", font=("Helvetica", 24, "bold"), bg="#f7f7f7", fg="#333")
         title.pack(pady=10)
@@ -424,16 +455,8 @@ class CcCleanerFrame(tk.Frame):
             return
         
         cleaned = []
-        # Regex to match a credit card pattern:
-        # - 15 or 16 digits (card number)
-        # - Followed by non-digit separator(s)
-        # - 1-2 digits (month)
-        # - Separator(s)
-        # - 2-4 digits (year)
-        # - Separator(s)
-        # - 3-4 digits (CVV)
+        # Regex to match credit card pattern: 15-16 digits, separator(s), 1-2 digits (month), separator(s), 2-4 digits (year), separator(s), 3-4 digits (CVV)
         pattern = re.compile(r'(\d{15,16})\D+(\d{1,2})\D+(\d{2,4})\D+(\d{3,4})')
-        
         for line in self.cc_lines:
             match = pattern.search(line)
             if match:
@@ -443,8 +466,10 @@ class CcCleanerFrame(tk.Frame):
                 cvv = match.group(4)
                 cleaned.append(f"{card}|{month}|{year}|{cvv}")
         
+        results_dir = get_results_directory("From Cc Cleaner")
         try:
-            with open("cleaned_cc.txt", "w", encoding="utf-8") as f:
+            filepath = os.path.join(results_dir, "cleaned_cc.txt")
+            with open(filepath, "w", encoding="utf-8") as f:
                 for cc in cleaned:
                     f.write(cc + "\n")
         except Exception as e:
