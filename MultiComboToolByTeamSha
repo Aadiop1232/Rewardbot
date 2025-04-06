@@ -1,0 +1,461 @@
+import os
+import re
+import time
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+
+# --- Utility for hover effect ---
+def add_hover_effect(widget, hover_bg, normal_bg):
+    widget.bind("<Enter>", lambda e: widget.config(background=hover_bg))
+    widget.bind("<Leave>", lambda e: widget.config(background=normal_bg))
+    widget.original_bg = normal_bg
+
+# --- Main Application with Frame Swapping ---
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Multi Combo Tool")
+        self.geometry("900x650")
+        self.resizable(False, False)
+        self.configure(bg="white")
+        
+        # Create container frame for swapping pages
+        container = tk.Frame(self, bg="white")
+        container.pack(side="top", fill="both", expand=True)
+        self.frames = {}
+        for F in (MainMenu, ComboExtractorFrame, ComboSorterFrame, ComboCleanerFrame, CcCleanerFrame):
+            page_name = F.__name__
+            frame = F(parent=container, controller=self)
+            self.frames[page_name] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+        self.show_frame("MainMenu")
+    
+    def show_frame(self, page_name):
+        frame = self.frames[page_name]
+        frame.tkraise()
+
+# --- Main Menu Frame ---
+class MainMenu(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, bg="white")
+        self.controller = controller
+        
+        header = tk.Label(self, text="MULTI COMBO TOOL BY ORIGIN LABS",
+                          font=("Helvetica", 32, "bold"), fg="#333333", bg="white")
+        header.pack(pady=30)
+        
+        btn_style = {"font": ("Helvetica", 16),
+                     "bg": "white", "fg": "black", "bd": 2, "relief": "groove", "width": 20, "height": 2}
+        
+        btn_extractor = tk.Button(self, text="Combo Extractor",
+                                  command=lambda: controller.show_frame("ComboExtractorFrame"), **btn_style)
+        btn_sorter = tk.Button(self, text="Combo Sorter",
+                               command=lambda: controller.show_frame("ComboSorterFrame"), **btn_style)
+        btn_cleaner = tk.Button(self, text="Combo Cleaner",
+                                command=lambda: controller.show_frame("ComboCleanerFrame"), **btn_style)
+        btn_cc_cleaner = tk.Button(self, text="Cc Cleaner",
+                                   command=lambda: controller.show_frame("CcCleanerFrame"), **btn_style)
+        
+        for btn in (btn_extractor, btn_sorter, btn_cleaner, btn_cc_cleaner):
+            btn.pack(pady=10)
+            add_hover_effect(btn, hover_bg="#ccffcc", normal_bg="white")
+        
+        footer = tk.Label(self, text="Designed by TeamShadow", font=("Helvetica", 10), bg="white", fg="gray")
+        footer.pack(side="bottom", pady=20)
+
+# --- Combo Extractor Frame ---
+class ComboExtractorFrame(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, bg="#f7f7f7")
+        self.controller = controller
+        self.ulp_lines = []
+        self.request_sites = []
+        
+        title = tk.Label(self, text="Combo Extractor", font=("Helvetica", 24, "bold"), bg="#f7f7f7", fg="#333")
+        title.pack(pady=10)
+        
+        # Buttons to load files and choose format
+        file_frame = tk.Frame(self, bg="#f7f7f7")
+        file_frame.pack(pady=10)
+        btn_load_ulp = tk.Button(file_frame, text="Load ULP File", command=self.load_ulp,
+                                   font=("Helvetica", 14), bg="white", fg="black", width=15)
+        btn_load_req = tk.Button(file_frame, text="Load Requests File", command=self.load_requests,
+                                   font=("Helvetica", 14), bg="white", fg="black", width=15)
+        btn_load_ulp.grid(row=0, column=0, padx=10, pady=5)
+        btn_load_req.grid(row=0, column=1, padx=10, pady=5)
+        add_hover_effect(btn_load_ulp, "#ccffcc", "white")
+        add_hover_effect(btn_load_req, "#ccffcc", "white")
+        
+        # Format selection
+        format_frame = tk.Frame(self, bg="#f7f7f7")
+        format_frame.pack(pady=5)
+        tk.Label(format_frame, text="Select Format:", font=("Helvetica", 14), bg="#f7f7f7", fg="black")\
+            .grid(row=0, column=0, padx=5, pady=5)
+        self.format_var = tk.StringVar(value="mail:pass")
+        self.format_menu = ttk.Combobox(format_frame, textvariable=self.format_var,
+                                        values=["mail:pass", "user:pass", "login:pass"],
+                                        font=("Helvetica", 14), width=15, state="readonly")
+        self.format_menu.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Start Extraction button
+        btn_start = tk.Button(self, text="Start Extraction", command=self.start_extraction,
+                              font=("Helvetica", 14), bg="white", fg="black", width=20)
+        btn_start.pack(pady=10)
+        add_hover_effect(btn_start, "#ccffcc", "white")
+        
+        # Results text area
+        self.results_text = tk.Text(self, font=("Helvetica", 12), bg="white", fg="black", height=10, width=80)
+        self.results_text.pack(pady=10)
+        
+        # Back button
+        btn_back = tk.Button(self, text="Back", command=lambda: controller.show_frame("MainMenu"),
+                             font=("Helvetica", 12), bg="white", fg="black", width=10)
+        btn_back.pack(pady=10)
+        add_hover_effect(btn_back, "#ccffcc", "white")
+    
+    def load_ulp(self):
+        filename = filedialog.askopenfilename(title="Select ULP File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.ulp_lines = [line.strip() for line in f if line.strip()]
+                messagebox.showinfo("ULP Loaded", f"Loaded {len(self.ulp_lines)} URLs.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading ULP file: {e}")
+    
+    def load_requests(self):
+        filename = filedialog.askopenfilename(title="Select Requests File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.request_sites = [line.strip().lower() for line in f if line.strip()]
+                messagebox.showinfo("Requests Loaded", f"Loaded {len(self.request_sites)} request sites.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading Requests file: {e}")
+    
+    def start_extraction(self):
+        if not self.ulp_lines:
+            messagebox.showwarning("Warning", "Please load a ULP file first.")
+            return
+        if not self.request_sites:
+            messagebox.showwarning("Warning", "Please load a Requests file first.")
+            return
+        
+        selected_format = self.format_var.get()
+        start_time = time.time()
+        total_lines = len(self.ulp_lines)
+        error_lines = 0
+        results = {}
+        
+        for line in self.ulp_lines:
+            try:
+                parsed = urllib.parse.urlparse(line)
+            except Exception:
+                error_lines += 1
+                continue
+            netloc = parsed.netloc.lower()
+            site_key = ""
+            matched = False
+            for req in self.request_sites:
+                if req in netloc:
+                    site_key = req
+                    matched = True
+                    break
+            if not matched:
+                error_lines += 1
+                continue
+            
+            # Get credential candidate from path or remainder of URL
+            cred_candidate = parsed.path
+            if not cred_candidate or cred_candidate == "/":
+                prefix = f"{parsed.scheme}://{parsed.netloc}"
+                cred_candidate = line[len(prefix):].lstrip("/?")
+            if "/" in cred_candidate:
+                cred_candidate = cred_candidate.split("/")[-1]
+            
+            # Use regex to extract email:password pattern (this will ignore any unwanted prefix)
+            match = re.search(r'([A-Za-z0-9_.+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9-.]+):(.+)', cred_candidate)
+            if match:
+                final_combo = f"{match.group(1)}:{match.group(2)}"
+            else:
+                error_lines += 1
+                continue
+            
+            # Validate if format is "mail:pass"
+            if selected_format == "mail:pass":
+                if "@" not in final_combo.split(":")[0]:
+                    error_lines += 1
+                    continue
+            
+            if site_key not in results:
+                results[site_key] = {"found": 0, "duplicates": 0, "unique": set(), "combos": []}
+            results[site_key]["found"] += 1
+            if final_combo in results[site_key]["unique"]:
+                results[site_key]["duplicates"] += 1
+            else:
+                results[site_key]["unique"].add(final_combo)
+                results[site_key]["combos"].append(final_combo)
+        
+        end_time = time.time()
+        time_taken = end_time - start_time
+        
+        # Write each site's unique combos to a file
+        for site, data in results.items():
+            if data["unique"]:
+                try:
+                    with open(f"{site}_combos.txt", "w", encoding="utf-8") as f:
+                        for combo in data["combos"]:
+                            f.write(combo + "\n")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error writing file for {site}: {e}")
+        
+        summary = ""
+        for site, data in results.items():
+            summary += f"Request: {site}\n"
+            summary += f"  Found: {data['found']}\n"
+            summary += f"  Duplicates: {data['duplicates']}\n"
+            summary += f"  Final Output: {len(data['unique'])}\n\n"
+        summary += f"Total Lines: {total_lines}\n"
+        summary += f"Error Lines: {error_lines}\n"
+        summary += f"Time Taken: {time_taken:.2f} seconds\n"
+        
+        self.results_text.delete("1.0", tk.END)
+        self.results_text.insert(tk.END, summary)
+        messagebox.showinfo("Extraction Complete", "Extraction completed! Check the output files.")
+
+# --- Combo Sorter Frame ---
+class ComboSorterFrame(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, bg="#f7f7f7")
+        self.controller = controller
+        self.mails = []
+        self.domains = []
+        
+        title = tk.Label(self, text="Combo Sorter", font=("Helvetica", 24, "bold"), bg="#f7f7f7", fg="#333")
+        title.pack(pady=10)
+        
+        file_frame = tk.Frame(self, bg="#f7f7f7")
+        file_frame.pack(pady=10)
+        btn_load_mails = tk.Button(file_frame, text="Load Mails", command=self.load_mails,
+                                     font=("Helvetica", 14), bg="white", fg="black", width=15)
+        btn_load_domains = tk.Button(file_frame, text="Load Domains", command=self.load_domains,
+                                       font=("Helvetica", 14), bg="white", fg="black", width=15)
+        btn_load_mails.grid(row=0, column=0, padx=10, pady=5)
+        btn_load_domains.grid(row=0, column=1, padx=10, pady=5)
+        add_hover_effect(btn_load_mails, "#ccffcc", "white")
+        add_hover_effect(btn_load_domains, "#ccffcc", "white")
+        
+        btn_start = tk.Button(self, text="Start Sorting", command=self.start_sorting,
+                              font=("Helvetica", 14), bg="white", fg="black", width=20)
+        btn_start.pack(pady=10)
+        add_hover_effect(btn_start, "#ccffcc", "white")
+        
+        self.results_text = tk.Text(self, font=("Helvetica", 12), bg="white", fg="black", height=10, width=80)
+        self.results_text.pack(pady=10)
+        
+        btn_back = tk.Button(self, text="Back", command=lambda: controller.show_frame("MainMenu"),
+                             font=("Helvetica", 12), bg="white", fg="black", width=10)
+        btn_back.pack(pady=10)
+        add_hover_effect(btn_back, "#ccffcc", "white")
+    
+    def load_mails(self):
+        filename = filedialog.askopenfilename(title="Select Mails File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.mails = [line.strip() for line in f if line.strip()]
+                messagebox.showinfo("Mails Loaded", f"Loaded {len(self.mails)} mail combos.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading mails file: {e}")
+    
+    def load_domains(self):
+        filename = filedialog.askopenfilename(title="Select Domains File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.domains = [line.strip().lower() for line in f if line.strip()]
+                messagebox.showinfo("Domains Loaded", f"Loaded {len(self.domains)} domains.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading domains file: {e}")
+    
+    def start_sorting(self):
+        if not self.mails:
+            messagebox.showwarning("Warning", "Please load a Mails file first.")
+            return
+        if not self.domains:
+            messagebox.showwarning("Warning", "Please load a Domains file first.")
+            return
+        
+        sorted_dict = {}
+        for line in self.mails:
+            # Assume each line is in the format email:pass
+            parts = line.split(":", 1)
+            if len(parts) != 2:
+                continue
+            email = parts[0].strip().lower()
+            password = parts[1].strip()
+            matched = False
+            for domain in self.domains:
+                if email.endswith(domain):
+                    matched = True
+                    if domain not in sorted_dict:
+                        sorted_dict[domain] = []
+                    sorted_dict[domain].append(f"{email}:{password}")
+                    break
+            if not matched:
+                # You could handle unmatched emails if needed
+                pass
+        
+        summary = ""
+        for domain, combos in sorted_dict.items():
+            summary += f"Domain: {domain} - {len(combos)} combos sorted\n"
+            try:
+                with open(f"{domain}_sorted.txt", "w", encoding="utf-8") as f:
+                    for combo in combos:
+                        f.write(combo + "\n")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error writing file for {domain}: {e}")
+        self.results_text.delete("1.0", tk.END)
+        self.results_text.insert(tk.END, summary)
+        messagebox.showinfo("Sorting Complete", "Sorting completed! Check the output files.")
+
+# --- Combo Cleaner Frame ---
+class ComboCleanerFrame(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, bg="#f7f7f7")
+        self.controller = controller
+        self.combos = []
+        
+        title = tk.Label(self, text="Combo Cleaner", font=("Helvetica", 24, "bold"), bg="#f7f7f7", fg="#333")
+        title.pack(pady=10)
+        
+        btn_load_combos = tk.Button(self, text="Load Combos", command=self.load_combos,
+                                    font=("Helvetica", 14), bg="white", fg="black", width=15)
+        btn_load_combos.pack(pady=10)
+        add_hover_effect(btn_load_combos, "#ccffcc", "white")
+        
+        btn_start = tk.Button(self, text="Start Cleaning", command=self.start_cleaning,
+                              font=("Helvetica", 14), bg="white", fg="black", width=20)
+        btn_start.pack(pady=10)
+        add_hover_effect(btn_start, "#ccffcc", "white")
+        
+        self.results_text = tk.Text(self, font=("Helvetica", 12), bg="white", fg="black", height=10, width=80)
+        self.results_text.pack(pady=10)
+        
+        btn_back = tk.Button(self, text="Back", command=lambda: controller.show_frame("MainMenu"),
+                             font=("Helvetica", 12), bg="white", fg="black", width=10)
+        btn_back.pack(pady=10)
+        add_hover_effect(btn_back, "#ccffcc", "white")
+    
+    def load_combos(self):
+        filename = filedialog.askopenfilename(title="Select Combos File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.combos = [line.strip() for line in f if line.strip()]
+                messagebox.showinfo("Combos Loaded", f"Loaded {len(self.combos)} combos.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading combos file: {e}")
+    
+    def start_cleaning(self):
+        if not self.combos:
+            messagebox.showwarning("Warning", "Please load a Combos file first.")
+            return
+        
+        cleaned = []
+        pattern = re.compile(r'^[^:\s]+:[^\s]+$')  # simple pattern for mail:pass
+        for line in self.combos:
+            if pattern.match(line):
+                cleaned.append(line)
+        try:
+            with open("cleaned_combos.txt", "w", encoding="utf-8") as f:
+                for combo in cleaned:
+                    f.write(combo + "\n")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error writing cleaned file: {e}")
+            return
+        
+        summary = f"Total Combos: {len(self.combos)}\nCleaned Combos: {len(cleaned)}"
+        self.results_text.delete("1.0", tk.END)
+        self.results_text.insert(tk.END, summary)
+        messagebox.showinfo("Cleaning Complete", "Cleaning completed! Check cleaned_combos.txt.")
+
+# --- Cc Cleaner Frame ---
+class CcCleanerFrame(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, bg="#f7f7f7")
+        self.controller = controller
+        self.cc_lines = []
+        
+        title = tk.Label(self, text="Cc Cleaner", font=("Helvetica", 24, "bold"), bg="#f7f7f7", fg="#333")
+        title.pack(pady=10)
+        
+        btn_load_cc = tk.Button(self, text="Load Cc's", command=self.load_ccs,
+                                font=("Helvetica", 14), bg="white", fg="black", width=15)
+        btn_load_cc.pack(pady=10)
+        add_hover_effect(btn_load_cc, "#ccffcc", "white")
+        
+        btn_start = tk.Button(self, text="Start Cleaning", command=self.start_cleaning,
+                              font=("Helvetica", 14), bg="white", fg="black", width=20)
+        btn_start.pack(pady=10)
+        add_hover_effect(btn_start, "#ccffcc", "white")
+        
+        self.results_text = tk.Text(self, font=("Helvetica", 12), bg="white", fg="black", height=10, width=80)
+        self.results_text.pack(pady=10)
+        
+        btn_back = tk.Button(self, text="Back", command=lambda: controller.show_frame("MainMenu"),
+                             font=("Helvetica", 12), bg="white", fg="black", width=10)
+        btn_back.pack(pady=10)
+        add_hover_effect(btn_back, "#ccffcc", "white")
+    
+def load_ccs(self):
+    filename = filedialog.askopenfilename(title="Select Cc's File", filetypes=[("Text Files", "*.txt")])
+    if filename:
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                self.cc_lines = [line.strip() for line in f if line.strip()]
+            messagebox.showinfo("Cc's Loaded", f"Loaded {len(self.cc_lines)} lines.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error loading Cc's file: {e}")
+
+def start_cleaning(self):
+    if not self.cc_lines:
+        messagebox.showwarning("Warning", "Please load a Cc's file first.")
+        return
+        
+    cleaned = []
+    # Regex to match CC pattern:
+    # - 15 or 16 digits (card number)
+    # - Followed by one or more non-digit separators
+    # - 1-2 digits (month)
+    # - One or more non-digit separators
+    # - 2-4 digits (year)
+    # - One or more non-digit separators
+    # - 3-4 digits (CVV)
+    pattern = re.compile(r'(\d{15,16})\D+(\d{1,2})\D+(\d{2,4})\D+(\d{3,4})')
+    
+    for line in self.cc_lines:
+        match = pattern.search(line)
+        if match:
+            card = match.group(1)
+            month = match.group(2)
+            year = match.group(3)
+            cvv = match.group(4)
+            cleaned.append(f"{card}|{month}|{year}|{cvv}")
+    
+    try:
+        with open("cleaned_cc.txt", "w", encoding="utf-8") as f:
+            for cc in cleaned:
+                f.write(cc + "\n")
+    except Exception as e:
+        messagebox.showerror("Error", f"Error writing cleaned Cc file: {e}")
+        return
+    
+    summary = f"Total Lines: {len(self.cc_lines)}\nCleaned Cc's: {len(cleaned)}"
+    self.results_text.delete("1.0", tk.END)
+    self.results_text.insert(tk.END, summary)
+    messagebox.showinfo("Cleaning Complete", "Cc cleaning completed! Check cleaned_cc.txt.")
+
+if __name__ == "__main__":
+    app = App()
+    app.mainloop()
