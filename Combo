@@ -1,0 +1,231 @@
+import os
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import urllib.parse, time
+from PIL import Image, ImageTk
+
+class ModernGUI(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Multi Combo Tool")
+        self.geometry("800x600")
+        self.resizable(False, False)
+        self.configure(bg="#2c2f33")
+        
+        # HEADER
+        header_frame = tk.Frame(self, bg="#23272a")
+        header_frame.pack(side="top", fill="x")
+        header_label = tk.Label(header_frame, text="MULTI COMBO TOOL BY ORIGIN LABS",
+                                font=("Helvetica", 28, "bold"), fg="#ff5555", bg="#23272a")
+        header_label.pack(pady=20)
+        
+        # NAVIGATION BAR
+        nav_frame = tk.Frame(self, bg="#2c2f33")
+        nav_frame.pack(side="top", fill="x", pady=10)
+        button_style = {
+            "font": ("Helvetica", 16, "bold"),
+            "bg": "#ff5555",
+            "fg": "#23272a",
+            "bd": 0,
+            "relief": "flat",
+            "activebackground": "#ff7777",
+            "cursor": "hand2",
+            "width": 15,
+            "height": 2
+        }
+        self.btn_extractor = tk.Button(nav_frame, text="Combo Extractor", command=self.open_extraction_window, **button_style)
+        self.btn_sorter    = tk.Button(nav_frame, text="Combo Sorter", command=self.combo_sorter, **button_style)
+        self.btn_cleaner   = tk.Button(nav_frame, text="Combo Cleaner", command=self.combo_cleaner, **button_style)
+        self.btn_cc_cleaner= tk.Button(nav_frame, text="Cc Cleaner", command=self.cc_cleaner, **button_style)
+        self.btn_extractor.grid(row=0, column=0, padx=10, pady=10)
+        self.btn_sorter.grid(row=0, column=1, padx=10, pady=10)
+        self.btn_cleaner.grid(row=0, column=2, padx=10, pady=10)
+        self.btn_cc_cleaner.grid(row=0, column=3, padx=10, pady=10)
+        
+        # CONTENT AREA
+        content_frame = tk.Frame(self, bg="#2c2f33")
+        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
+        self.content_label = tk.Label(content_frame, text="Welcome to Multi Combo Tool", font=("Helvetica", 20),
+                                  fg="white", bg="#2c2f33")
+        self.content_label.pack(expand=True)
+        
+        # FOOTER
+        footer_frame = tk.Frame(self, bg="#23272a")
+        footer_frame.pack(side="bottom", fill="x")
+        footer_label = tk.Label(footer_frame, text="Designed by TeamShadow", font=("Helvetica", 10),
+                                  fg="white", bg="#23272a")
+        footer_label.pack(pady=10)
+    
+    def open_extraction_window(self):
+        # Create a new window for combo extraction
+        self.ext_win = tk.Toplevel(self)
+        self.ext_win.title("Combo Extraction")
+        self.ext_win.geometry("800x600")
+        self.ext_win.resizable(False, False)
+        self.ext_win.configure(bg="#2c2f33")
+        
+        # Control frame for file loading and options
+        ctrl_frame = tk.Frame(self.ext_win, bg="#23272a")
+        ctrl_frame.place(x=50, y=50)
+        
+        self.btn_load_ulp = tk.Button(ctrl_frame, text="Load ULP File", command=self.load_ulp,
+                                      font=("Helvetica", 14), bg="#ff5555", fg="#23272a", width=15)
+        self.btn_load_ulp.grid(row=0, column=0, padx=5, pady=5)
+        self.btn_load_req = tk.Button(ctrl_frame, text="Load Requests File", command=self.load_requests,
+                                      font=("Helvetica", 14), bg="#ff5555", fg="#23272a", width=15)
+        self.btn_load_req.grid(row=0, column=1, padx=5, pady=5)
+        
+        tk.Label(ctrl_frame, text="Select Format:", font=("Helvetica", 14), bg="#23272a", fg="white")\
+            .grid(row=1, column=0, padx=5, pady=5)
+        self.format_var = tk.StringVar(value="mail:pass")
+        self.format_menu = ttk.Combobox(ctrl_frame, textvariable=self.format_var,
+                                        values=["mail:pass", "user:pass", "login:pass"],
+                                        font=("Helvetica", 14), width=13, state="readonly")
+        self.format_menu.grid(row=1, column=1, padx=5, pady=5)
+        
+        self.btn_start = tk.Button(ctrl_frame, text="Start Extraction", command=self.start_extraction,
+                                   font=("Helvetica", 14), bg="#ff5555", fg="#23272a", width=15)
+        self.btn_start.grid(row=2, column=0, columnspan=2, pady=10)
+        
+        # Text widget for displaying results
+        self.results_text = tk.Text(self.ext_win, font=("Helvetica", 12), bg="white", fg="black")
+        self.results_text.place(x=50, y=300, width=700, height=250)
+        
+        # Initialize storage for file contents
+        self.ulp_lines = []
+        self.request_sites = []
+    
+    def load_ulp(self):
+        filename = filedialog.askopenfilename(title="Select ULP File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.ulp_lines = [line.strip() for line in f if line.strip()]
+                messagebox.showinfo("ULP Loaded", f"Loaded {len(self.ulp_lines)} URLs.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading ULP file: {e}")
+    
+    def load_requests(self):
+        filename = filedialog.askopenfilename(title="Select Requests File", filetypes=[("Text Files", "*.txt")])
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.request_sites = [line.strip().lower() for line in f if line.strip()]
+                messagebox.showinfo("Requests Loaded", f"Loaded {len(self.request_sites)} request sites.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading Requests file: {e}")
+    
+    def start_extraction(self):
+        if not self.ulp_lines:
+            messagebox.showwarning("Warning", "Please load a ULP file first.")
+            return
+        if not self.request_sites:
+            messagebox.showwarning("Warning", "Please load a Requests file first.")
+            return
+        
+        selected_format = self.format_var.get()
+        start_time = time.time()
+        total_lines = len(self.ulp_lines)
+        error_lines = 0
+        
+        # Dictionary to hold results per request site:
+        # { site: {"found": int, "duplicates": int, "unique": set(), "combos": list() } }
+        results = {}
+        for line in self.ulp_lines:
+            try:
+                parsed = urllib.parse.urlparse(line)
+            except Exception:
+                error_lines += 1
+                continue
+            netloc = parsed.netloc.lower()
+            matched = False
+            site_key = ""
+            for req in self.request_sites:
+                if req in netloc:
+                    matched = True
+                    site_key = req
+                    break
+            if not matched:
+                error_lines += 1
+                continue
+            
+            # Extract credential candidate from URL's path; fallback if needed
+            cred_candidate = parsed.path
+            if not cred_candidate or cred_candidate == "/":
+                prefix = f"{parsed.scheme}://{parsed.netloc}"
+                cred_candidate = line[len(prefix):].lstrip("/?")
+            if "/" in cred_candidate:
+                cred_candidate = cred_candidate.split("/")[-1]
+            
+            # Improved extraction:
+            parts = cred_candidate.split(":")
+            final_combo = None
+            email_index = None
+            for i, part in enumerate(parts):
+                if "@" in part:
+                    email_index = i
+                    break
+            if email_index is not None and email_index + 1 < len(parts):
+                email = parts[email_index]
+                password = ":".join(parts[email_index+1:])
+                final_combo = f"{email}:{password}"
+            elif len(parts) >= 2:
+                final_combo = parts[0] + ":" + ":".join(parts[1:])
+            else:
+                error_lines += 1
+                continue
+            
+            # Validate for "mail:pass" (ensure email part contains "@")
+            if selected_format == "mail:pass":
+                if "@" not in final_combo.split(":")[0]:
+                    error_lines += 1
+                    continue
+            
+            if site_key not in results:
+                results[site_key] = {"found": 0, "duplicates": 0, "unique": set(), "combos": []}
+            results[site_key]["found"] += 1
+            if final_combo in results[site_key]["unique"]:
+                results[site_key]["duplicates"] += 1
+            else:
+                results[site_key]["unique"].add(final_combo)
+                results[site_key]["combos"].append(final_combo)
+        
+        end_time = time.time()
+        time_taken = end_time - start_time
+        
+        # Write unique combos to files per site
+        for site, data in results.items():
+            if data["unique"]:
+                try:
+                    with open(f"{site}_combos.txt", "w", encoding="utf-8") as f:
+                        for combo in data["combos"]:
+                            f.write(combo + "\n")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error writing file for {site}: {e}")
+        
+        summary = ""
+        for site, data in results.items():
+            summary += f"Request: {site}\n"
+            summary += f"  Found: {data['found']}\n"
+            summary += f"  Duplicates: {data['duplicates']}\n"
+            summary += f"  Final Output: {len(data['unique'])}\n\n"
+        summary += f"Total Lines: {total_lines}\n"
+        summary += f"Error Lines: {error_lines}\n"
+        summary += f"Time Taken: {time_taken:.2f} seconds\n"
+        
+        self.results_text.delete("1.0", tk.END)
+        self.results_text.insert(tk.END, summary)
+        messagebox.showinfo("Extraction Complete", "Extraction completed! Check the results and output files.")
+    
+    def combo_sorter(self):
+        messagebox.showinfo("Combo Sorter", "Combo Sorter functionality not implemented yet.")
+    
+    def combo_cleaner(self):
+        messagebox.showinfo("Combo Cleaner", "Combo Cleaner functionality not implemented yet.")
+    
+    def cc_cleaner(self):
+        messagebox.showinfo("Cc Cleaner", "Cc Cleaner functionality not implemented yet.")
+
+if __name__ == "__main__":
+    app = ModernGUI()
+    app.mainloop()
